@@ -139,6 +139,12 @@ function showState(stateName) {
   else if (stateName === 'expired') paymentExpiredState.classList.remove('hidden');
 }
 
+let userSessionId = sessionStorage.getItem('slipte_user_sess');
+if (!userSessionId) {
+  userSessionId = 'sess_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now().toString(36);
+  sessionStorage.setItem('slipte_user_sess', userSessionId);
+}
+
 let pollInterval = null;
 let isWsConnected = false;
 let lastProcessedTxnState = null;
@@ -170,6 +176,9 @@ async function connectTerminal(code) {
       merchantUpi: data.merchant.upi_id
     });
 
+    // Fire instant registration heartbeat so merchant slot lights up immediately
+    fetch(`/api/user/poll/${encodeURIComponent(code)}?sessionId=${encodeURIComponent(userSessionId)}`).catch(() => {});
+
     // Start WebSocket and HTTP polling backup for Serverless/Vercel
     initWebSocket(code, data.merchant);
     startHttpPolling(code, data.merchant);
@@ -180,7 +189,6 @@ async function connectTerminal(code) {
   }
 }
 
-
 // HTTP Polling fallback for Serverless platforms (e.g. Vercel) where WebSockets are unavailable
 function startHttpPolling(code, merchantInfo) {
   if (pollInterval) clearInterval(pollInterval);
@@ -189,9 +197,10 @@ function startHttpPolling(code, merchantInfo) {
     if (isWsConnected) return; // WebSocket is handling real-time events
 
     try {
-      const res = await fetch(`/api/user/poll/${encodeURIComponent(code)}`);
+      const res = await fetch(`/api/user/poll/${encodeURIComponent(code)}?sessionId=${encodeURIComponent(userSessionId)}`);
       if (!res.ok) return;
       const data = await res.json();
+
 
       if (data.blocked) {
         alert('⚠️ ' + data.message);

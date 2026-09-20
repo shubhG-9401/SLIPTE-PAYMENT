@@ -114,10 +114,12 @@ function getSlotStatus(merchant) {
     maxSlots: 2,
     slotText: `${count}/2`,
     slots: [
-      { code, connected: count > 0, activeUsers: count }
+      { code, slotNumber: 1, connected: count >= 1, activeUsers: count },
+      { code, slotNumber: 2, connected: count >= 2, activeUsers: count }
     ]
   };
 }
+
 
 
 wss.on('connection', (ws) => {

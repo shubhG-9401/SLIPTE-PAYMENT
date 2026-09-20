@@ -486,8 +486,9 @@ function startMerchantPollingBackup() {
       loadStats();
       loadTransactions();
     }
-  }, 2500);
+  }, 1200);
 }
+
 
 // WebSocket Connection
 
