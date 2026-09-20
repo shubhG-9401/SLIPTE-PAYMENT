@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http');
 const path = require('path');
+const fs = require('fs');
 const cors = require('cors');
 const { WebSocketServer, WebSocket } = require('ws');
 const QRCode = require('qrcode');
