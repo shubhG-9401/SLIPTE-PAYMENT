@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Merchant Portal | Paytm UPI Gateway</title>
+  <link rel="stylesheet" href="/merchant/merchant.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <nav class="navbar">
+    <div class="nav-container">
+      <div class="brand">
+        <span class="portal-name">Merchant Hub</span>
+      </div>
+      <div class="nav-right-group">
+        <button id="tryDemoNavBtn" class="btn btn-warning btn-demo-top">⚡ Try Demo</button>
+        <div id="navUserSection" class="nav-user-section hidden">
+          <span class="merchant-badge"><span class="dot live"></span> <span id="navMerchantPhone">Merchant</span></span>
+          <button id="logoutBtn" class="btn btn-outline btn-sm">Logout</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <!-- AUTH SECTION (Login & Registration) -->
+    <div id="authSection" class="auth-wrapper">
+
+      <!-- PROMINENT INSTANT DEMO SANDBOX BANNER -->
+      <div class="try-demo-card">
+        <div class="try-demo-content">
+          <div class="demo-tag">🧪 INSTANT SANDBOX TEST MODE</div>
+          <h3>Test the Merchant Platform Instantly</h3>
+          <p>Skip authentication to test the Merchant Dashboard with Unique Code <strong>MC-99</strong> for live terminal pairing, dynamic QR generation, and auto-splitting amounts &gt; ₹1999.</p>
+        </div>
+        <button id="tryDemoBtn" type="button" class="btn btn-warning btn-lg btn-demo-action">
+          ⚡ Launch Demo Dashboard &rarr;
+        </button>
+      </div>
+
+      <div class="auth-card">
+        <div class="auth-header">
+          <div class="auth-icon">💼</div>
+          <h2>Merchant Portal Access</h2>
+          <p>Sign in or register your verified Paytm merchant account</p>
+          <div class="auth-tabs">
+            <button type="button" id="tabLogin" class="tab-btn active">Sign In</button>
+            <button type="button" id="tabRegister" class="tab-btn">Create Account</button>
+          </div>
+        </div>
+
+        <!-- LOGIN FORM -->
+        <form id="loginForm" class="auth-form" novalidate>
+          <div class="form-group">
+            <label for="loginPhone">Mobile Number</label>
+            <div class="input-with-prefix">
+              <span class="input-prefix">+91</span>
+              <input type="tel" id="loginPhone" placeholder="Enter 10-digit mobile number" required maxlength="15" autocomplete="tel">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="loginPassword">Password</label>
+            <input type="password" id="loginPassword" placeholder="Enter password" required autocomplete="current-password">
+          </div>
+
+          <div class="demo-autofill-box">
+            <button type="button" id="fillDemoCredsBtn" class="btn-demo-autofill">
+              ⚡ Fill Demo Login (9999999999 / demo123)
+            </button>
+          </div>
+
+          <button type="submit" id="loginSubmitBtn" class="btn btn-primary btn-block">
+            Sign In to Dashboard &rarr;
+          </button>
+          <div id="loginAlert" class="alert hidden"></div>
+        </form>
+
+        <!-- REGISTRATION FORM -->
+        <div id="registerForm" class="auth-form hidden">
+          <div class="form-group">
+            <label for="regPhone">Mobile Number</label>
+            <div class="input-with-prefix">
+              <span class="input-prefix">+91</span>
+              <input type="tel" id="regPhone" placeholder="Enter 10-digit mobile number" maxlength="15" autocomplete="tel">
+            </div>
+          </div>
+
+          <!-- Payment Gateway Selection Dropdown -->
+          <div class="form-group">
+            <label for="gatewayDropdown">Payment Gateway Selection</label>
+            <select id="gatewayDropdown" class="select-input">
+              <option value="paytm" selected>Paytm (LIVE - Default)</option>
+              <option value="gpay" disabled>Google Pay (Coming Soon)</option>
+              <option value="phonepe" disabled>PhonePe (Coming Soon)</option>
+              <option value="other" disabled>Other Gateways (Coming Soon)</option>
+            </select>
+            <small class="field-hint">Paytm is LIVE. Other payout gateways are disabled (Coming Soon).</small>
+          </div>
+
+          <div class="form-group">
+            <label for="regUpi">Merchant Destination UPI ID</label>
+            <input type="text" id="regUpi" placeholder="e.g. paytm.s1m66cw@pty or yourname@paytm">
+            <small class="field-hint">All dynamic QR payments route directly to this UPI address (e.g. <code>paytm.s1m66cw@pty</code>)</small>
+          </div>
+
+          <div class="form-group">
+            <label for="regPassword">Password</label>
+            <input type="password" id="regPassword" placeholder="Create strong password (min 4 chars)" autocomplete="new-password">
+          </div>
+
+          <button type="button" id="regSubmitBtn" class="btn btn-primary btn-block">
+            ✨ Complete Free Registration &amp; Activate &rarr;
+          </button>
+          <div id="regAlert" class="alert hidden"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD SECTION -->
+    <div id="dashboardSection" class="dashboard-wrapper hidden">
+      <!-- Merchant Overview Bar -->
+      <div class="overview-header">
+        <div class="merchant-info-card">
+          <div class="info-avatar">💼</div>
+          <div>
+            <h2 id="dashMerchantPhone">9876543210</h2>
+            <div class="info-meta">
+              <span class="meta-tag"><strong id="dashMerchantUpi">upi@paytm</strong></span>
+              <span class="meta-tag live"><span class="dot live"></span> Paytm Gateway Active</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="actions-group">
+          <button id="refreshStatsBtn" class="btn btn-outline btn-sm">↻ Refresh Stats</button>
+        </div>
+      </div>
+
+      <!-- LINKED USER PAIRING TERMINALS (Max 2 separate users) -->
+      <div class="dashboard-card user-slots-card">
+        <div class="card-title-row">
+          <div>
+            <h3>Merchant Terminal Linkage &amp; Connected Users</h3>
+            <p class="card-subtitle">Share your Unique Code with customers. Max 2 distinct users can pair concurrently.</p>
+          </div>
+          <div class="slots-kpi-badge">
+            <span class="kpi-tag">Active Users</span>
+            <span class="kpi-count" id="dashSlotsCounter">0/2</span>
+          </div>
+        </div>
+
+        <div class="terminal-pairing-hero">
+          <div class="code-spotlight-box">
+            <div class="spotlight-left">
+              <span class="spotlight-label">ASSIGNED UNIQUE CODE</span>
+              <div class="spotlight-code-row">
+                <span class="spotlight-code" id="dashMerchantCode">MC-99</span>
+                <button id="copyMerchantCodeBtn" class="btn btn-sm btn-secondary" title="Copy Code">📋 Copy Code</button>
+              </div>
+              <span class="spotlight-hint">Customers enter this code in their light-blue User Portal to pair.</span>
+            </div>
+            <div class="spotlight-right">
+              <div class="slot-indicators">
+                <div class="slot-pill" id="slotIndicator1">
+                  <span class="slot-dot"></span>
+                  <span class="slot-name">User Terminal 1: <strong id="slotText1">Available</strong></span>
+                </div>
+                <div class="slot-pill" id="slotIndicator2">
+                  <span class="slot-dot"></span>
+                  <span class="slot-name">User Terminal 2: <strong id="slotText2">Available</strong></span>
+                </div>
+              </div>
+              <div class="terminal-quick-links">
+                <a href="/user.html" target="_blank" class="btn btn-sm btn-outline open-terminal-btn" id="openTerminalLink">🔗 Open Customer Terminal &rarr;</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAYMENT REQUEST INITIATOR & AUTO-SPLITTING ENGINE -->
+      <div class="dashboard-grid">
+        <!-- Collect Payment Form -->
+        <div class="dashboard-card payment-request-card">
+          <div class="card-title-row">
+            <h3>Transaction Amount Entry &amp; Auto-Splitting</h3>
+          </div>
+          <p class="card-subtitle">Amounts &le; ₹1999 generate a single QR. Amounts &gt; ₹1999 automatically split into sequential chunks &le; ₹1999.</p>
+
+          <form id="paymentRequestForm">
+            <div class="form-group">
+              <label for="merchantDestinationUpi">Merchant Destination UPI ID</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="text" id="merchantDestinationUpi" placeholder="e.g. paytm.s1m66cw@pty" required style="flex: 1;">
+                <button type="button" id="saveUpiBtn" class="btn btn-outline btn-sm" style="white-space: nowrap;">💾 Save UPI</button>
+              </div>
+              <small class="field-hint">Dynamic QR codes will route funds directly to this UPI ID (e.g. <code>paytm.s1m66cw@pty</code>)</small>
+            </div>
+
+            <div class="form-group">
+              <label for="paymentAmount">Amount to Collect (₹ INR)</label>
+              <div class="input-with-prefix">
+                <span class="input-prefix">₹</span>
+                <input type="number" id="paymentAmount" min="0.01" step="0.01" placeholder="e.g. 598 or 4500" required>
+              </div>
+            </div>
+
+            <!-- Dynamic Split Calculation Preview -->
+            <div id="splitPreviewBox" class="split-preview-box">
+              <div class="split-preview-title" id="splitPreviewTitle">Auto-Splitting Preview</div>
+              <div class="split-pills" id="splitPillsContainer">
+                <span class="split-pill single">Enter an amount to see single or auto-split breakdown</span>
+              </div>
+            </div>
+
+            <button type="submit" id="pushPaymentBtn" class="btn btn-primary btn-block">
+              Push Payload 1 to Linked User &rarr;
+            </button>
+          </form>
+        </div>
+
+        <!-- ACTIVE PAYMENT ACTION CONTROLLER / PENDING APPROVALS LIST -->
+        <div class="dashboard-card active-payment-card" id="activePaymentCard">
+          <div class="card-title-row">
+            <h3>Pending Approvals Queue</h3>
+            <span id="activeTimerBadge" class="timer-badge hidden">⏱ 02:00</span>
+          </div>
+
+          <div id="noActiveTxnMsg" class="empty-state">
+            <div class="empty-icon">⏳</div>
+            <p>No transactions pending approval.<br>Enter an amount on the left to push to the connected user screen.</p>
+          </div>
+
+          <div id="activeTxnDetails" class="active-txn-wrapper hidden">
+            <div class="active-chunk-highlight">
+              <div class="chunk-badge-row">
+                <span class="chunk-index-tag" id="activeChunkTag">Payload 1 of 1</span>
+                <span class="chunk-total-tag" id="activeTotalTag">Total: ₹0.00</span>
+              </div>
+              <div class="active-amount-box">
+                <span class="label">Current Chunk Due:</span>
+                <span class="value" id="activeAmountVal">₹0.00</span>
+                <span class="split-subtext" id="activeSplitSubtext">Chunk 1/1</span>
+              </div>
+            </div>
+
+            <div class="active-status-banner" id="activeStatusBanner">
+              <span class="status-indicator"></span>
+              <span id="activeStatusText">Waiting for customer to scan QR...</span>
+            </div>
+
+            <div id="activeUtrBox" class="utr-box hidden">
+              <span class="utr-label">User Provided UTR / Reference:</span>
+              <strong id="activeUtrVal">1234567890</strong>
+            </div>
+
+            <!-- APPROVE / DENY ACTIONS -->
+            <div class="action-buttons-grid">
+              <button id="approvePaymentBtn" class="btn btn-success btn-lg">
+                <span class="btn-icon">✓</span> Approve Chunk
+              </button>
+              <button id="denyPaymentBtn" class="btn btn-danger btn-lg">
+                <span class="btn-icon">✕</span> Deny Transaction
+              </button>
+            </div>
+            <p class="controller-hint" id="controllerHint">Verify incoming funds in your Paytm app before approving.</p>
+          </div>
+      </div>
+
+      <!-- STATISTICS & ANALYTICS -->
+      <div class="dashboard-card stats-section">
+        <h3>Merchant Analytics &amp; Statistics</h3>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="stat-icon">💰</span>
+            <span class="stat-label">Total Revenue</span>
+            <h4 id="statTotalRevenue">₹0.00</h4>
+          </div>
+          <div class="stat-card">
+            <span class="stat-icon">📅</span>
+            <span class="stat-label">Today's Revenue</span>
+            <h4 id="statTodayRevenue">₹0.00</h4>
+          </div>
+          <div class="stat-card">
+            <span class="stat-icon">✅</span>
+            <span class="stat-label">Approved Payments</span>
+            <h4 id="statApprovedCount">0</h4>
+          </div>
+          <div class="stat-card">
+            <span class="stat-icon">❌</span>
+            <span class="stat-label">Denied Payments</span>
+            <h4 id="statDeniedCount">0</h4>
+          </div>
+        </div>
+
+        <!-- TRANSACTIONS HISTORY TABLE -->
+        <div class="table-responsive">
+          <div class="table-header-row">
+            <h4>Payment History</h4>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>TXN ID</th>
+                <th>Time</th>
+                <th>Customer Slot</th>
+                <th>Amount</th>
+                <th>Splits</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="txnsTableBody">
+              <tr>
+                <td colspan="6" class="text-center">No transactions recorded yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="/merchant/merchant.js"></script>
+</body>
+</html>
