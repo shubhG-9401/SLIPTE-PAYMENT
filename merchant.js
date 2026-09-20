@@ -7,7 +7,10 @@ let timerInterval = null;
 // Audio alerts
 function playSound(type) {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    if (ctx.state === 'suspended') return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -26,7 +29,7 @@ function playSound(type) {
       osc.stop(ctx.currentTime + 0.35);
     }
   } catch (e) {
-    // AudioContext might be blocked until user interacts
+    // AudioContext blocked until user interacts
   }
 }
 
@@ -472,67 +475,153 @@ function onLoginSuccess(merchant) {
   }
 
   renderSlots(merchant.slots || [], merchant.slotInfo);
-  connectWebSocket();
   startMerchantPollingBackup();
-  loadStats();
-  loadTransactions();
+  connectWebSocket();
 }
 
 let merchantPollInterval = null;
 function startMerchantPollingBackup() {
   if (merchantPollInterval) clearInterval(merchantPollInterval);
+  syncMerchantState();
   merchantPollInterval = setInterval(() => {
     if (currentMerchant) {
-      loadStats();
-      loadTransactions();
+      syncMerchantState();
     }
   }, 1200);
 }
 
+async function syncMerchantState() {
+  if (!currentMerchant) return;
+  try {
+    const res = await fetch(`/api/merchant/sync/${currentMerchant.id}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.success) return;
 
-// WebSocket Connection
+    // 1. Update Slots (Slot 1 and Slot 2 indicators)
+    if (data.slots || data.slotInfo) {
+      renderSlots(data.slots || [], data.slotInfo);
+    }
 
+    // 2. Update Revenue & Transaction Counts
+    if (data.stats) {
+      const s = data.stats;
+      document.getElementById('statTotalRevenue').textContent = formatCurrency(s.totalRevenue);
+      document.getElementById('statTodayRevenue').textContent = formatCurrency(s.todayRevenue);
+      document.getElementById('statApprovedCount').textContent = s.approvedCount;
+      document.getElementById('statDeniedCount').textContent = s.deniedCount;
+    }
+
+    // 3. Update Payment History Table
+    if (data.transactions) {
+      renderTransactionsTable(data.transactions);
+    }
+
+    // 4. Update Pending Approvals Queue & UTR
+    syncActivePaymentFromState(data.activePayment);
+  } catch (e) {
+    console.warn('Sync error:', e);
+  }
+}
+
+function syncActivePaymentFromState(ap) {
+  if (!ap) {
+    if (activeTxn && activeTxn.status !== 'approved' && activeTxn.status !== 'denied') {
+      activeTxn = null;
+      document.getElementById('noActiveTxnMsg').classList.remove('hidden');
+      document.getElementById('activeTxnDetails').classList.add('hidden');
+      document.getElementById('activeTimerBadge').classList.add('hidden');
+      clearInterval(timerInterval);
+    }
+    return;
+  }
+
+  const isNewTxn = !activeTxn || activeTxn.id !== ap.id;
+  const isNewPart = activeTxn && activeTxn.current_part_index !== ap.current_part_index;
+
+  if (isNewTxn || isNewPart) {
+    activeTxn = {
+      id: ap.id,
+      merchant_id: currentMerchant.id,
+      user_code: ap.user_code,
+      total_amount: ap.total_amount,
+      split_count: ap.split_count,
+      current_part_index: ap.current_part_index,
+      chunks: [ap.currentChunk]
+    };
+    setActiveTransaction(activeTxn, ap.remainingSeconds || 120);
+  }
+
+  // If customer submitted payment / UTR
+  if (ap.status === 'submitted' || (ap.currentChunk && ap.currentChunk.status === 'submitted')) {
+    const banner = document.getElementById('activeStatusBanner');
+    if (banner && !banner.classList.contains('submitted') && !banner.classList.contains('approved')) {
+      playSound('beep');
+      banner.className = 'active-status-banner submitted';
+      document.getElementById('activeStatusText').textContent = '🔔 Customer submitted payment for verification.';
+    }
+    const utrVal = ap.utr || (ap.currentChunk && ap.currentChunk.utr);
+    if (utrVal && utrVal !== 'Not provided') {
+      document.getElementById('activeUtrBox').classList.remove('hidden');
+      document.getElementById('activeUtrVal').textContent = utrVal;
+    }
+  }
+}
+
+// WebSocket Connection (with fallback backoff for Serverless/Vercel)
+let wsRetries = 0;
 function connectWebSocket() {
   if (!currentMerchant) return;
+  if (wsRetries > 3) return; // Prevent infinite console errors on serverless platforms (Vercel)
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = `${protocol}//${window.location.host}`;
-  ws = new WebSocket(wsUrl);
+  try {
+    ws = new WebSocket(wsUrl);
 
-  ws.onopen = () => {
-    ws.send(JSON.stringify({
-      type: 'merchant_init',
-      merchantId: currentMerchant.id
-    }));
-  };
+    ws.onopen = () => {
+      wsRetries = 0;
+      ws.send(JSON.stringify({
+        type: 'merchant_init',
+        merchantId: currentMerchant.id
+      }));
+    };
 
-  ws.onmessage = (event) => {
-    try {
-      const msg = JSON.parse(event.data);
-      if (msg.type === 'merchant_ready' || msg.type === 'slot_updated') {
-        renderSlots(msg.slots || [], msg.slotInfo);
-      } else if (msg.type === 'user_submitted_payment') {
-        playSound('beep');
-        onUserSubmittedPayment(msg);
-      } else if (msg.type === 'chunk_approved') {
-        onChunkApproved(msg);
-      } else if (msg.type === 'payment_decision_confirmed') {
-        onDecisionConfirmed(msg.transaction);
-      } else if (msg.type === 'payment_expired') {
-        onPaymentExpired(msg.txnId);
-      } else if (msg.type === 'merchant_blocked') {
-        alert('⚠️ ' + msg.message);
-        logoutBtn.click();
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'merchant_ready' || msg.type === 'slot_updated') {
+          renderSlots(msg.slots || [], msg.slotInfo);
+        } else if (msg.type === 'user_submitted_payment') {
+          playSound('beep');
+          onUserSubmittedPayment(msg);
+        } else if (msg.type === 'chunk_approved') {
+          onChunkApproved(msg);
+        } else if (msg.type === 'payment_decision_confirmed') {
+          onDecisionConfirmed(msg.transaction);
+        } else if (msg.type === 'payment_expired') {
+          onPaymentExpired(msg.txnId);
+        } else if (msg.type === 'merchant_blocked') {
+          alert('⚠️ ' + msg.message);
+          logoutBtn.click();
+        }
+      } catch (e) {
+        console.error('WS Error:', e);
       }
-    } catch (e) {
-      console.error('WS Error:', e);
-    }
-  };
+    };
 
-  ws.onclose = () => {
-    if (currentMerchant) {
-      setTimeout(connectWebSocket, 3000);
-    }
-  };
+    ws.onerror = () => {
+      wsRetries++;
+    };
+
+    ws.onclose = () => {
+      wsRetries++;
+      if (currentMerchant && wsRetries <= 3) {
+        setTimeout(connectWebSocket, 5000);
+      }
+    };
+  } catch (e) {
+    wsRetries++;
+  }
 }
 
 // Terminal & Slot Management (Max 2 distinct connected users)
@@ -912,6 +1001,9 @@ async function loadStats() {
       document.getElementById('statTodayRevenue').textContent = formatCurrency(s.todayRevenue);
       document.getElementById('statApprovedCount').textContent = s.approvedCount;
       document.getElementById('statDeniedCount').textContent = s.deniedCount;
+      if (s.slots || s.slotInfo) {
+        renderSlots(s.slots || [], s.slotInfo);
+      }
     }
   } catch (e) {
     console.error('Stats error:', e);

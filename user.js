@@ -10,7 +10,10 @@ let remainingSeconds = 120;
 // Audio Alerts
 function playSound(type) {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    if (ctx.state === 'suspended') return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -149,12 +152,12 @@ let pollInterval = null;
 let isWsConnected = false;
 let lastProcessedTxnState = null;
 
-// Connect Terminal via Code
+// // Connect Terminal via Code
 async function connectTerminal(code) {
   pairingAlert.classList.add('hidden');
 
   try {
-    const res = await fetch(`/api/user/validate-code/${encodeURIComponent(code)}`);
+    const res = await fetch(`/api/user/terminal/${encodeURIComponent(code)}?sessionId=${encodeURIComponent(userSessionId)}`);
     const text = await res.text();
     let data;
     try {
@@ -173,15 +176,13 @@ async function connectTerminal(code) {
     onTerminalConnected({
       code: code,
       merchantPhone: data.merchant.phone,
-      merchantUpi: data.merchant.upi_id
+      merchantUpi: data.merchant.upi_id,
+      slot: data.slot
     });
 
-    // Fire instant registration heartbeat so merchant slot lights up immediately
-    fetch(`/api/user/poll/${encodeURIComponent(code)}?sessionId=${encodeURIComponent(userSessionId)}`).catch(() => {});
-
-    // Start WebSocket and HTTP polling backup for Serverless/Vercel
-    initWebSocket(code, data.merchant);
+    // Start continuous polling heartbeat & state synchronization (rock-solid on Vercel)
     startHttpPolling(code, data.merchant);
+    initWebSocket(code, data.merchant);
   } catch (err) {
     pairingAlert.textContent = err.message;
     pairingAlert.className = 'alert error';
@@ -189,18 +190,15 @@ async function connectTerminal(code) {
   }
 }
 
-// HTTP Polling fallback for Serverless platforms (e.g. Vercel) where WebSockets are unavailable
+// HTTP Polling fallback & Slot Heartbeat (Works 100% on Serverless/Vercel & Local)
 function startHttpPolling(code, merchantInfo) {
   if (pollInterval) clearInterval(pollInterval);
 
   async function poll() {
-    if (isWsConnected) return; // WebSocket is handling real-time events
-
     try {
-      const res = await fetch(`/api/user/poll/${encodeURIComponent(code)}?sessionId=${encodeURIComponent(userSessionId)}`);
+      const res = await fetch(`/api/user/terminal/${encodeURIComponent(code)}?sessionId=${encodeURIComponent(userSessionId)}`);
       if (!res.ok) return;
       const data = await res.json();
-
 
       if (data.blocked) {
         alert('⚠️ ' + data.message);
@@ -208,31 +206,44 @@ function startHttpPolling(code, merchantInfo) {
         return;
       }
 
+      if (data.slot) {
+        connectionStatusBadge.textContent = `Terminal Live (Slot ${data.slot})`;
+        connectionStatusBadge.className = 'status-badge online';
+      }
+
       if (data.activePayment) {
         const ap = data.activePayment;
-        const txn = ap.transaction;
+        const txn = ap.transaction || ap;
+        const stateKey = `${ap.id}_part_${ap.currentPart}_${ap.status}`;
 
-        if (ap.type === 'active_payment') {
-          const stateKey = `${txn.id}_part_${ap.currentPart}_${txn.status}`;
-          if (lastProcessedTxnState !== stateKey) {
-            lastProcessedTxnState = stateKey;
-            currentTxn = txn;
-            if (txn.status === 'submitted') {
-              showState('submitted');
+        if (lastProcessedTxnState !== stateKey) {
+          lastProcessedTxnState = stateKey;
+          currentTxn = txn;
+
+          if (ap.status === 'submitted') {
+            showState('submitted');
+          } else if (ap.status === 'pending') {
+            if (ap.currentPart > 1) {
+              playSound('chime');
             } else {
               playSound('alert');
-              onPaymentReceived(txn, ap.remainingSeconds || 120);
             }
-          }
-        } else if (ap.type === 'payment_decision') {
-          const stateKey = `${txn.id}_decision_${ap.status}`;
-          if (lastProcessedTxnState !== stateKey) {
-            lastProcessedTxnState = stateKey;
-            onPaymentDecision({ status: ap.status, transaction: txn });
+            onPaymentReceived(txn, ap.remainingSeconds || 120, ap.qrDataUrl);
           }
         }
       } else {
-        if (lastProcessedTxnState && !currentTxn) {
+        // No active pending payment
+        if (data.lastTransaction && currentTxn && data.lastTransaction.id === currentTxn.id) {
+          const stateKey = `${data.lastTransaction.id}_decision_${data.lastTransaction.status}`;
+          if (lastProcessedTxnState !== stateKey) {
+            lastProcessedTxnState = stateKey;
+            if (data.lastTransaction.status === 'approved') {
+              onPaymentDecision({ status: 'approved', transaction: data.lastTransaction });
+            } else if (data.lastTransaction.status === 'denied') {
+              onPaymentDecision({ status: 'denied', transaction: data.lastTransaction });
+            }
+          }
+        } else if (!currentTxn) {
           showState('waiting');
           lastProcessedTxnState = null;
         }
@@ -243,10 +254,12 @@ function startHttpPolling(code, merchantInfo) {
   }
 
   poll();
-  pollInterval = setInterval(poll, 1500);
+  pollInterval = setInterval(poll, 1200);
 }
 
+let userWsRetries = 0;
 function initWebSocket(code, merchantInfo) {
+  if (userWsRetries > 3) return; // Prevent console spam on Vercel serverless
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = `${protocol}//${window.location.host}`;
 
@@ -254,9 +267,8 @@ function initWebSocket(code, merchantInfo) {
     ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
+      userWsRetries = 0;
       isWsConnected = true;
-      connectionStatusBadge.textContent = 'Terminal Live';
-      connectionStatusBadge.className = 'status-badge online';
       ws.send(JSON.stringify({
         type: 'user_init',
         userCode: code
@@ -293,38 +305,37 @@ function initWebSocket(code, merchantInfo) {
 
     ws.onclose = () => {
       isWsConnected = false;
-      // Stay online via HTTP polling fallback!
-      connectionStatusBadge.textContent = 'Terminal Live';
-      connectionStatusBadge.className = 'status-badge online';
-      if (currentCode) {
+      userWsRetries++;
+      if (currentCode && userWsRetries <= 3) {
         setTimeout(() => initWebSocket(currentCode, merchantInfo), 6000);
       }
     };
 
     ws.onerror = () => {
       isWsConnected = false;
+      userWsRetries++;
     };
   } catch (err) {
     isWsConnected = false;
+    userWsRetries++;
   }
 }
 
-
 function onTerminalConnected(msg) {
-  connectionStatusBadge.textContent = 'Terminal Live';
+  const slotText = msg.slot ? ` (Slot ${msg.slot})` : '';
+  connectionStatusBadge.textContent = `Terminal Live${slotText}`;
   connectionStatusBadge.className = 'status-badge online';
 
   pairingBox.classList.add('hidden');
   upiBox.classList.remove('hidden');
 
-  merchantInfoText.textContent = `Merchant Connected (${msg.code || 'MC-99'})`;
-  waitingMerchantUpi.textContent = msg.merchantUpi;
-
+  merchantInfoText.textContent = `Merchant Connected (${msg.code || 'MC-99'})${slotText}`;
+  if (msg.merchantUpi) waitingMerchantUpi.textContent = msg.merchantUpi;
   showState('waiting');
 }
 
 // Payment Flow with Sequential Chunk Rendering
-function onPaymentReceived(txn, secs = 120) {
+function onPaymentReceived(txn, secs = 120, preloadedQrDataUrl = null) {
   currentTxn = txn;
   totalTimerSeconds = 120;
   remainingSeconds = secs;
@@ -348,18 +359,23 @@ function onPaymentReceived(txn, secs = 120) {
   currentPartAmount.textContent = `Pay ${formatCurrency(currentChunk.amount)}`;
   if (upiIntentBtn) upiIntentBtn.href = currentChunk.upi_uri;
 
-  qrLoading.classList.remove('hidden');
-  fetch(`/api/qr?text=${encodeURIComponent(currentChunk.upi_uri)}`)
-    .then(r => r.json())
-    .then(d => {
-      if (d.dataUrl) {
-        qrImage.src = d.dataUrl;
-        qrLoading.classList.add('hidden');
-      }
-    })
-    .catch(e => {
-      qrLoading.textContent = 'Failed to generate QR';
-    });
+  if (preloadedQrDataUrl) {
+    qrImage.src = preloadedQrDataUrl;
+    qrLoading.classList.add('hidden');
+  } else {
+    qrLoading.classList.remove('hidden');
+    fetch(`/api/qr?text=${encodeURIComponent(currentChunk.upi_uri)}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.dataUrl) {
+          qrImage.src = d.dataUrl;
+          qrLoading.classList.add('hidden');
+        }
+      })
+      .catch(e => {
+        qrLoading.textContent = 'Failed to generate QR';
+      });
+  }
 
   // Start 2-Minute Timer
   startTimer();

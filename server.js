@@ -5,7 +5,7 @@ const fs = require('fs');
 const cors = require('cors');
 const { WebSocketServer, WebSocket } = require('ws');
 const QRCode = require('qrcode');
-const { MerchantStore, TransactionStore, AdminStore, sanitizeMerchant, normalizePhone } = require('./db');
+const { MerchantStore, TransactionStore, TerminalStore, AdminStore, sanitizeMerchant, normalizePhone } = require('./db');
 
 const app = express();
 const server = http.createServer(app);
@@ -17,7 +17,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Smart fallback: Check if user.js or merchant.js was uploaded directly to root
+// Smart fallback: Check if JS or CSS files were uploaded directly to root
 app.get(['/user/user.js', '/user.js'], (req, res) => {
   const rootFile = path.join(__dirname, 'user.js');
   if (fs.existsSync(rootFile)) {
@@ -40,6 +40,30 @@ app.get(['/admin/admin.js', '/admin.js'], (req, res) => {
     return res.sendFile(rootFile);
   }
   res.sendFile(path.join(__dirname, 'public', 'admin', 'admin.js'));
+});
+
+app.get(['/user/user.css', '/user.css'], (req, res) => {
+  const rootFile = path.join(__dirname, 'user.css');
+  if (fs.existsSync(rootFile)) return res.sendFile(rootFile);
+  res.sendFile(path.join(__dirname, 'public', 'user', 'user.css'));
+});
+
+app.get(['/merchant/merchant.css', '/merchant.css'], (req, res) => {
+  const rootFile = path.join(__dirname, 'merchant.css');
+  if (fs.existsSync(rootFile)) return res.sendFile(rootFile);
+  res.sendFile(path.join(__dirname, 'public', 'merchant', 'merchant.css'));
+});
+
+app.get(['/admin/admin.css', '/admin.css'], (req, res) => {
+  const rootFile = path.join(__dirname, 'admin.css');
+  if (fs.existsSync(rootFile)) return res.sendFile(rootFile);
+  res.sendFile(path.join(__dirname, 'public', 'admin', 'admin.css'));
+});
+
+app.get(['/index.css', '/style.css'], (req, res) => {
+  const rootFile = path.join(__dirname, 'index.css');
+  if (fs.existsSync(rootFile)) return res.sendFile(rootFile);
+  res.sendFile(path.join(__dirname, 'public', 'index.css'));
 });
 
 // Serve static assets
@@ -102,20 +126,18 @@ function cleanStalePollers() {
 function getSlotStatus(merchant) {
   if (!merchant) return { code: 'MC-99', connectedCount: 0, maxSlots: 2, slotText: '0/2', slots: [] };
   const code = (merchant.merchant_code || (merchant.user_codes && merchant.user_codes[0]) || 'MC-99').toUpperCase();
-  cleanStalePollers();
+  const dbStatus = TerminalStore.getSlotStatus(code);
   const sockets = userSockets.get(code);
   const wsCount = sockets ? sockets.size : 0;
-  const pollSessions = userPollers.get(code);
-  const pollCount = pollSessions ? pollSessions.size : 0;
-  const count = Math.min(2, Math.max(wsCount, pollCount));
+  const count = Math.min(2, Math.max(wsCount, dbStatus.connectedCount));
   return {
     code,
     connectedCount: count,
     maxSlots: 2,
     slotText: `${count}/2`,
     slots: [
-      { code, slotNumber: 1, connected: count >= 1, activeUsers: count },
-      { code, slotNumber: 2, connected: count >= 2, activeUsers: count }
+      { code, slotNumber: 1, connected: dbStatus.slots[0].connected || count >= 1, activeUsers: count },
+      { code, slotNumber: 2, connected: dbStatus.slots[1].connected || count >= 2, activeUsers: count }
     ]
   };
 }
@@ -516,7 +538,8 @@ app.post('/api/merchant/update-upi', (req, res) => {
   }
 });
 
-app.post('/api/merchant/payment-request', (req, res) => {
+// Payment Request Dispatcher (Single or Auto-Split Chunks <= 1999)
+app.post(['/api/merchant/payment-request', '/api/merchant/dispatch'], (req, res) => {
   try {
     const { merchantId, targetSlotCode, amount, upi_id } = req.body;
     if (!merchantId || !amount || Number(amount) <= 0) {
@@ -532,7 +555,7 @@ app.post('/api/merchant/payment-request', (req, res) => {
       merchant_id: merchantId,
       user_code: targetCode,
       total_amount: Number(amount),
-      upi_id
+      upi_id: upi_id || merchant.upi_id
     });
 
     const currentChunk = txn.chunks[0];
@@ -581,7 +604,7 @@ app.post('/api/merchant/payment-action', (req, res) => {
       const result = TransactionStore.approveCurrentChunk(txnId);
 
       if (!result.completed) {
-        // Condition B: Multi-split transaction - sequential push of next chunk
+        // Multi-split transaction - sequential push of next chunk
         broadcastToUserCode(targetCode, {
           type: 'chunk_approved_next',
           approvedChunk: result.approvedChunk,
@@ -601,7 +624,7 @@ app.post('/api/merchant/payment-action', (req, res) => {
 
         return res.json({ success: true, completed: false, transaction: result.txn, nextChunk: result.nextChunk });
       } else {
-        // All chunks completed and approved
+        // All chunks completed and fully approved
         broadcastToUserCode(targetCode, {
           type: 'payment_decision',
           txnId,
@@ -641,6 +664,60 @@ app.post('/api/merchant/payment-action', (req, res) => {
   }
 });
 
+// Unified Merchant State Synchronization Endpoint (One-Stop Poll for Serverless & WebSockets)
+app.get('/api/merchant/sync/:id', (req, res) => {
+  try {
+    const merchant = MerchantStore.findById(req.params.id);
+    if (!merchant) return res.status(404).json({ error: 'Merchant not found' });
+
+    const code = (merchant.merchant_code || (merchant.user_codes && merchant.user_codes[0]) || 'MC-99').toUpperCase();
+    const slotInfo = getSlotStatus(merchant);
+    const stats = TransactionStore.getMerchantStats(merchant.id);
+    const txns = TransactionStore.getByMerchant(merchant.id);
+    const activeTxn = TransactionStore.getActiveForMerchant(merchant.id);
+
+    let activePayment = null;
+    if (activeTxn) {
+      const currentIdx = (activeTxn.current_part_index || 1) - 1;
+      const currentChunk = (activeTxn.chunks && activeTxn.chunks[currentIdx]) || null;
+      const now = Date.now();
+      const exp = new Date(activeTxn.expires_at).getTime();
+      const remainingSeconds = Math.max(0, Math.floor((exp - now) / 1000));
+
+      activePayment = {
+        id: activeTxn.id,
+        status: activeTxn.status,
+        total_amount: activeTxn.total_amount,
+        split_count: activeTxn.split_count,
+        current_part_index: activeTxn.current_part_index || 1,
+        remainingSeconds,
+        user_code: activeTxn.user_code,
+        currentChunk: currentChunk ? {
+          part_index: currentChunk.part_index,
+          total_parts: currentChunk.total_parts,
+          amount: currentChunk.amount,
+          status: currentChunk.status,
+          utr: currentChunk.utr || activeTxn.utr || null
+        } : null,
+        utr: activeTxn.utr || (currentChunk && currentChunk.utr) || null
+      };
+    }
+
+    res.json({
+      success: true,
+      merchant: sanitizeMerchant(merchant),
+      slots: slotInfo.slots,
+      slotInfo,
+      connectedCount: slotInfo.connectedCount,
+      activePayment,
+      stats,
+      transactions: txns
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Merchant Transactions & Statistics
 app.get('/api/merchant/transactions/:id', (req, res) => {
   try {
@@ -656,30 +733,15 @@ app.get('/api/merchant/stats/:id', (req, res) => {
     const merchant = MerchantStore.findById(req.params.id);
     if (!merchant) return res.status(404).json({ error: 'Merchant not found' });
 
-    const txns = TransactionStore.getByMerchant(req.params.id);
-    const approvedTxns = txns.filter(t => t.status === 'approved' || (t.approved_amount && t.approved_amount > 0));
-    const fullyApproved = txns.filter(t => t.status === 'approved');
-    const deniedTxns = txns.filter(t => t.status === 'denied');
-
-    const totalRevenue = txns.reduce((sum, t) => sum + (t.approved_amount || (t.status === 'approved' ? t.total_amount : 0)), 0);
-
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const todayApproved = txns.filter(t => (t.approved_at || t.created_at).startsWith(todayStr));
-    const todayRevenue = todayApproved.reduce((sum, t) => sum + (t.approved_amount || (t.status === 'approved' ? t.total_amount : 0)), 0);
-
+    const stats = TransactionStore.getMerchantStats(merchant.id);
     const slotInfo = getSlotStatus(merchant);
 
     res.json({
       success: true,
       stats: {
-        totalRevenue,
-        todayRevenue,
-        totalTransactions: txns.length,
-        approvedCount: fullyApproved.length,
-        deniedCount: deniedTxns.length,
-        pendingCount: txns.filter(t => t.status === 'pending' || t.status === 'submitted').length,
+        ...stats,
         slots: slotInfo.slots,
-        slotInfo: slotInfo
+        slotInfo
       }
     });
   } catch (err) {
@@ -693,7 +755,7 @@ app.get('/api/merchant/stats/:id', (req, res) => {
 app.get('/api/user/validate-code/:code', (req, res) => {
   try {
     const code = req.params.code;
-    const merchant = MerchantStore.findByUserCode(code);
+    const merchant = MerchantStore.findByUserCode(code) || MerchantStore.findByMerchantCode(code);
     if (!merchant) {
       return res.status(404).json({ valid: false, error: 'Invalid pairing code' });
     }
@@ -703,6 +765,7 @@ app.get('/api/user/validate-code/:code', (req, res) => {
     res.json({
       valid: true,
       merchant: {
+        id: merchant.id,
         phone: merchant.phone.replace(/(\d{2})\d{4}(\d{4})/, '$1****$2'),
         upi_id: merchant.upi_id,
         provider: merchant.provider
@@ -713,8 +776,8 @@ app.get('/api/user/validate-code/:code', (req, res) => {
   }
 });
 
-// User Terminal HTTP Polling Endpoint (Fallback for Serverless / Vercel without WebSockets)
-app.get('/api/user/poll/:code', (req, res) => {
+// User Terminal State & Heartbeat Endpoint (Unified for HTTP polling & Serverless)
+app.get(['/api/user/terminal/:code', '/api/user/poll/:code'], async (req, res) => {
   try {
     const rawCode = req.params.code;
     const cleanCode = (rawCode || '').trim().toUpperCase();
@@ -722,87 +785,112 @@ app.get('/api/user/poll/:code', (req, res) => {
 
     const merchant = MerchantStore.findByUserCode(cleanCode) || MerchantStore.findByMerchantCode(cleanCode);
     if (!merchant) {
-      return res.status(404).json({ error: 'Merchant not found' });
+      return res.status(404).json({ valid: false, error: 'Merchant not found' });
     }
 
     if (merchant.status === 'blocked') {
-      return res.json({ success: false, blocked: true, message: 'Merchant account has been blocked by administrator.' });
+      return res.json({ valid: false, blocked: true, message: 'Merchant account has been blocked by administrator.' });
     }
 
-    // Register active polling heartbeat for slot status
-    if (!userPollers.has(cleanCode)) {
-      userPollers.set(cleanCode, new Map());
-    }
-    userPollers.get(cleanCode).set(sessionId, Date.now());
+    // Register active heartbeat in persistent TerminalStore
+    const terminal = TerminalStore.registerHeartbeat(cleanCode, sessionId);
+    const slotInfo = getSlotStatus(merchant);
 
-    // Check latest transaction
-    const latestTxn = TransactionStore.getLatestForCode(cleanCode);
+    // Active transaction lookup
+    const activeTxn = TransactionStore.getActiveForUserCode(cleanCode);
     let activePayment = null;
 
-    if (latestTxn) {
+    if (activeTxn) {
+      const currentIdx = (activeTxn.current_part_index || 1) - 1;
+      const currentChunk = (activeTxn.chunks && activeTxn.chunks[currentIdx]) || null;
       const now = Date.now();
-      const exp = new Date(latestTxn.expires_at).getTime();
+      const exp = new Date(activeTxn.expires_at).getTime();
+      const remainingSeconds = Math.max(0, Math.floor((exp - now) / 1000));
 
-      if ((latestTxn.status === 'pending' || latestTxn.status === 'submitted') && exp > now) {
-        const currentIdx = (latestTxn.current_part_index || 1) - 1;
-        const currentChunk = (latestTxn.chunks && latestTxn.chunks[currentIdx]) || null;
-        activePayment = {
-          type: 'active_payment',
-          transaction: latestTxn,
-          chunk: currentChunk,
-          currentPart: latestTxn.current_part_index || 1,
-          totalParts: latestTxn.split_count || 1,
-          remainingSeconds: Math.max(0, Math.floor((exp - now) / 1000))
-        };
-      } else if (latestTxn.status === 'approved' || latestTxn.status === 'denied') {
-        const updatedTime = new Date(latestTxn.updated_at || latestTxn.created_at).getTime();
-        if (now - updatedTime < 25000) {
-          activePayment = {
-            type: 'payment_decision',
-            transaction: latestTxn,
-            status: latestTxn.status,
-            message: latestTxn.status === 'approved' ? 'Payment Approved by Merchant! Thank you.' : 'Payment Denied by Merchant.'
-          };
-        }
+      let qrDataUrl = null;
+      if (currentChunk && currentChunk.upi_uri) {
+        try {
+          qrDataUrl = await QRCode.toDataURL(currentChunk.upi_uri, {
+            width: 320,
+            margin: 2,
+            color: { dark: '#002970', light: '#ffffff' }
+          });
+        } catch (e) {}
       }
+
+      activePayment = {
+        type: 'active_payment',
+        id: activeTxn.id,
+        transaction: activeTxn,
+        status: activeTxn.status,
+        total_amount: activeTxn.total_amount,
+        split_count: activeTxn.split_count,
+        currentPart: activeTxn.current_part_index || 1,
+        totalParts: activeTxn.split_count || 1,
+        chunkAmount: currentChunk ? currentChunk.amount : activeTxn.total_amount,
+        upiUri: currentChunk ? currentChunk.upi_uri : null,
+        qrDataUrl,
+        remainingSeconds,
+        utr: activeTxn.utr || null
+      };
+    }
+
+    // Latest transaction check for recent approval/denial decision
+    const latestTxn = TransactionStore.getLatestForCode(cleanCode);
+    let lastTransaction = null;
+    if (latestTxn) {
+      lastTransaction = {
+        id: latestTxn.id,
+        status: latestTxn.status,
+        total_amount: latestTxn.total_amount,
+        approved_amount: latestTxn.approved_amount,
+        current_part_index: latestTxn.current_part_index,
+        split_count: latestTxn.split_count,
+        updated_at: latestTxn.approved_at || latestTxn.denied_at || latestTxn.created_at
+      };
     }
 
     res.json({
+      valid: true,
       success: true,
       code: cleanCode,
+      slot: terminal ? terminal.slotNumber : 1,
+      connectedCount: slotInfo.connectedCount,
+      slotInfo,
       merchant: {
+        id: merchant.id,
         phone: merchant.phone.replace(/(\d{2})\d{4}(\d{4})/, '$1****$2'),
         upi_id: merchant.upi_id,
-        provider: merchant.provider,
-        status: merchant.status
+        provider: merchant.provider
       },
-      activePayment
+      activePayment,
+      lastTransaction
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-
 app.post('/api/user/submit-payment', (req, res) => {
   try {
     const { txnId, utr } = req.body;
+    if (!txnId) return res.status(400).json({ error: 'txnId is required' });
+
     const txn = TransactionStore.findById(txnId);
     if (!txn) return res.status(404).json({ error: 'Transaction not found' });
-    if (txn.status !== 'pending') {
+    if (txn.status !== 'pending' && txn.status !== 'submitted') {
       return res.status(400).json({ error: `Transaction is already ${txn.status}` });
     }
 
-    const updated = TransactionStore.updateStatus(txnId, 'submitted');
-    if (utr) updated.utr = utr;
+    const updated = TransactionStore.submitUtr(txnId, utr);
 
-    // Notify Merchant
+    // Notify Merchant WebSocket
     broadcastToMerchant(txn.merchant_id, {
       type: 'user_submitted_payment',
       txnId,
       userCode: txn.user_code,
       totalAmount: txn.total_amount,
-      utr: utr || 'Not provided'
+      utr: updated.utr
     });
 
     res.json({ success: true, transaction: updated });

@@ -51,57 +51,57 @@ const initialData = {
       password: defaultAdminPassword,
       created_at: new Date().toISOString()
     }
-  ]
+  ],
+  terminals: []
 };
 
 let memoryCache = null;
 
 function readDb() {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      const content = fs.readFileSync(DB_FILE, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (!Array.isArray(parsed.terminals)) parsed.terminals = [];
+      if (!Array.isArray(parsed.transactions)) parsed.transactions = [];
+      if (!Array.isArray(parsed.merchants)) parsed.merchants = [];
+
+      // Ensure demo merchant always exists
+      let modified = false;
+      if (!parsed.merchants.some(m => m.merchant_code === 'MC-99' || m.id === 'm_demo')) {
+        parsed.merchants.unshift({
+          id: 'm_demo',
+          phone: '9999999999',
+          password: demoMerchantPassword,
+          provider: 'paytm',
+          upi_id: 'merchant@paytm',
+          fee_paid: true,
+          razorpay_payment_id: 'pay_demo_init',
+          status: 'active',
+          merchant_code: 'MC-99',
+          user_codes: ['MC-99'],
+          is_demo: true,
+          created_at: new Date().toISOString()
+        });
+        modified = true;
+      }
+      if (modified) {
+        writeDb(parsed);
+      }
+      memoryCache = parsed;
+      return parsed;
+    }
+  } catch (err) {
+    console.warn('Disk DB read error, using fallback:', err.message);
+  }
+
   if (memoryCache) {
+    if (!Array.isArray(memoryCache.terminals)) memoryCache.terminals = [];
     return memoryCache;
   }
-  try {
-    if (!fs.existsSync(DB_FILE)) {
-      writeDb(initialData);
-      return initialData;
-    }
 
-    const content = fs.readFileSync(DB_FILE, 'utf-8');
-    const parsed = JSON.parse(content);
-
-    // Ensure demo merchant always exists
-    let modified = false;
-    if (!parsed.merchants) {
-      parsed.merchants = [];
-      modified = true;
-    }
-    if (!parsed.merchants.some(m => m.merchant_code === 'MC-99' || m.id === 'm_demo')) {
-      parsed.merchants.unshift({
-        id: 'm_demo',
-        phone: '9999999999',
-        password: demoMerchantPassword,
-        provider: 'paytm',
-        upi_id: 'merchant@paytm',
-        fee_paid: true,
-        razorpay_payment_id: 'pay_demo_init',
-        status: 'active',
-        merchant_code: 'MC-99',
-        user_codes: ['MC-99'],
-        is_demo: true,
-        created_at: new Date().toISOString()
-      });
-      modified = true;
-    }
-    if (modified) {
-      writeDb(parsed);
-    }
-    memoryCache = parsed;
-    return parsed;
-  } catch (err) {
-    console.error('Error reading database:', err);
-    memoryCache = initialData;
-    return initialData;
-  }
+  writeDb(initialData);
+  return initialData;
 }
 
 function writeDb(data) {
@@ -553,6 +553,80 @@ const TransactionStore = {
     return txn;
   },
 
+  submitUtr(id, utr) {
+    const db = readDb();
+    const txn = db.transactions.find(t => t.id === id);
+    if (!txn) throw new Error('Transaction not found');
+
+    const cleanUtr = (utr || '').trim();
+    txn.status = 'submitted';
+    txn.utr = cleanUtr || 'Submitted (No UTR entered)';
+    const currentIdx = (txn.current_part_index || 1) - 1;
+    if (txn.chunks && txn.chunks[currentIdx]) {
+      txn.chunks[currentIdx].status = 'submitted';
+      txn.chunks[currentIdx].utr = cleanUtr || 'Submitted (No UTR entered)';
+      txn.chunks[currentIdx].submitted_at = new Date().toISOString();
+    }
+    writeDb(db);
+    return txn;
+  },
+
+  getActiveForMerchant(merchant_id) {
+    const db = readDb();
+    const active = db.transactions.find(t => 
+      t.merchant_id === merchant_id && 
+      (t.status === 'pending' || t.status === 'submitted')
+    );
+    if (!active) return null;
+
+    if (new Date(active.expires_at).getTime() < Date.now()) {
+      active.status = 'expired';
+      writeDb(db);
+      return null;
+    }
+    return active;
+  },
+
+  getActiveForUserCode(code) {
+    const db = readDb();
+    const cleanCode = (code || '').trim().toUpperCase();
+    const active = db.transactions.find(t => 
+      ((t.merchant_code && t.merchant_code.toUpperCase() === cleanCode) ||
+       (t.user_code && t.user_code.toUpperCase() === cleanCode)) &&
+      (t.status === 'pending' || t.status === 'submitted')
+    );
+    if (!active) return null;
+
+    if (new Date(active.expires_at).getTime() < Date.now()) {
+      active.status = 'expired';
+      writeDb(db);
+      return null;
+    }
+    return active;
+  },
+
+  getMerchantStats(merchant_id) {
+    const db = readDb();
+    const txns = db.transactions.filter(t => t.merchant_id === merchant_id);
+    const fullyApproved = txns.filter(t => t.status === 'approved');
+    const deniedTxns = txns.filter(t => t.status === 'denied');
+    const pendingTxns = txns.filter(t => t.status === 'pending' || t.status === 'submitted');
+
+    const totalRevenue = txns.reduce((sum, t) => sum + (t.approved_amount || (t.status === 'approved' ? t.total_amount : 0)), 0);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayApproved = txns.filter(t => (t.approved_at || t.created_at || '').startsWith(todayStr));
+    const todayRevenue = todayApproved.reduce((sum, t) => sum + (t.approved_amount || (t.status === 'approved' ? t.total_amount : 0)), 0);
+
+    return {
+      totalRevenue: Math.round(totalRevenue * 100) / 100,
+      todayRevenue: Math.round(todayRevenue * 100) / 100,
+      totalTransactions: txns.length,
+      approvedCount: fullyApproved.length,
+      deniedCount: deniedTxns.length,
+      pendingCount: pendingTxns.length
+    };
+  },
+
   expireTransaction(id) {
     const db = readDb();
     const txn = db.transactions.find(t => t.id === id);
@@ -579,6 +653,71 @@ const TransactionStore = {
     txn.status = status;
     writeDb(db);
     return txn;
+  }
+};
+
+// Persistent Terminal Store for Slot Linking (Max 2 Slots per merchant code)
+const TerminalStore = {
+  registerHeartbeat(code, sessionId) {
+    if (!code || !sessionId) return null;
+    const cleanCode = code.trim().toUpperCase();
+    const db = readDb();
+    if (!Array.isArray(db.terminals)) db.terminals = [];
+
+    const now = Date.now();
+    // Prune stale sessions (> 15 seconds)
+    db.terminals = db.terminals.filter(t => (now - (t.lastSeen || 0)) < 15000);
+
+    let terminal = db.terminals.find(t => t.sessionId === sessionId && t.code === cleanCode);
+    if (!terminal) {
+      const occupied = new Set(db.terminals.filter(t => t.code === cleanCode).map(t => t.slotNumber));
+      const assignedSlot = occupied.has(1) ? 2 : 1;
+      terminal = {
+        sessionId,
+        code: cleanCode,
+        slotNumber: assignedSlot,
+        lastSeen: now,
+        created_at: new Date().toISOString()
+      };
+      db.terminals.push(terminal);
+    } else {
+      terminal.lastSeen = now;
+    }
+
+    writeDb(db);
+    return terminal;
+  },
+
+  getSlotStatus(code) {
+    const cleanCode = (code || '').trim().toUpperCase();
+    const db = readDb();
+    if (!Array.isArray(db.terminals)) db.terminals = [];
+
+    const now = Date.now();
+    const active = db.terminals.filter(t => t.code === cleanCode && (now - (t.lastSeen || 0)) < 15000);
+
+    const hasSlot1 = active.some(t => t.slotNumber === 1);
+    const hasSlot2 = active.some(t => t.slotNumber === 2 || active.length >= 2);
+    const connectedCount = Math.min(2, active.length);
+
+    return {
+      code: cleanCode,
+      connectedCount,
+      maxSlots: 2,
+      slotText: `${connectedCount}/2`,
+      slots: [
+        { code: cleanCode, slotNumber: 1, connected: hasSlot1, activeUsers: connectedCount },
+        { code: cleanCode, slotNumber: 2, connected: hasSlot2, activeUsers: connectedCount }
+      ]
+    };
+  },
+
+  disconnect(sessionId) {
+    if (!sessionId) return;
+    const db = readDb();
+    if (!Array.isArray(db.terminals)) return;
+    db.terminals = db.terminals.filter(t => t.sessionId !== sessionId);
+    writeDb(db);
   }
 };
 
@@ -635,6 +774,7 @@ const AdminStore = {
 module.exports = {
   MerchantStore,
   TransactionStore,
+  TerminalStore,
   AdminStore,
   splitAmount,
   buildUpiUri,
