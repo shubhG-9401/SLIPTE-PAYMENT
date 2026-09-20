@@ -16,12 +16,38 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Smart fallback: Check if user.js or merchant.js was uploaded directly to root
+app.get(['/user/user.js', '/user.js'], (req, res) => {
+  const rootFile = path.join(__dirname, 'user.js');
+  if (fs.existsSync(rootFile)) {
+    return res.sendFile(rootFile);
+  }
+  res.sendFile(path.join(__dirname, 'public', 'user', 'user.js'));
+});
+
+app.get(['/merchant/merchant.js', '/merchant.js'], (req, res) => {
+  const rootFile = path.join(__dirname, 'merchant.js');
+  if (fs.existsSync(rootFile)) {
+    return res.sendFile(rootFile);
+  }
+  res.sendFile(path.join(__dirname, 'public', 'merchant', 'merchant.js'));
+});
+
+app.get(['/admin/admin.js', '/admin.js'], (req, res) => {
+  const rootFile = path.join(__dirname, 'admin.js');
+  if (fs.existsSync(rootFile)) {
+    return res.sendFile(rootFile);
+  }
+  res.sendFile(path.join(__dirname, 'public', 'admin', 'admin.js'));
+});
+
 // Serve static assets
 app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
 app.use('/merchant', express.static(path.join(__dirname, 'public', 'merchant')));
 app.use('/user', express.static(path.join(__dirname, 'public', 'user')));
 app.use('/shared', express.static(path.join(__dirname, 'public', 'shared')));
 app.use(express.static(path.join(__dirname, 'public')));
+
 
 // ----------------------------------------------------
 // Real-time WebSocket Connection Manager
@@ -914,23 +940,46 @@ app.post('/api/admin/clear-fake-data', (req, res) => {
   }
 });
 
+function resolveHtml(...candidates) {
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return candidates[0];
+}
+
 // Explicit routes for *.html files
 app.get('/merchant.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'merchant', 'index.html'));
+  res.sendFile(resolveHtml(
+    path.join(__dirname, 'public', 'merchant', 'index.html'),
+    path.join(__dirname, 'public', 'merchant.html'),
+    path.join(__dirname, 'merchant.html')
+  ));
 });
 
 app.get('/user.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'user', 'index.html'));
+  res.sendFile(resolveHtml(
+    path.join(__dirname, 'public', 'user', 'index.html'),
+    path.join(__dirname, 'public', 'user.html'),
+    path.join(__dirname, 'user.html')
+  ));
 });
 
 app.get('/admin.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html'));
+  res.sendFile(resolveHtml(
+    path.join(__dirname, 'public', 'admin', 'index.html'),
+    path.join(__dirname, 'public', 'admin.html'),
+    path.join(__dirname, 'admin.html')
+  ));
 });
 
 // Root Landing Page
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(resolveHtml(
+    path.join(__dirname, 'public', 'index.html'),
+    path.join(__dirname, 'index.html')
+  ));
 });
+
 
 
 
