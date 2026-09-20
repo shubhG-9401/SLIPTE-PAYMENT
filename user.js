@@ -149,7 +149,14 @@ async function connectTerminal(code) {
 
   try {
     const res = await fetch(`/api/user/validate-code/${encodeURIComponent(code)}`);
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      throw new Error('Server starting up, please click Connect Terminal again in a moment.');
+    }
+
     if (!res.ok || !data.valid) {
       throw new Error(data.error || 'Invalid pairing code');
     }
@@ -172,6 +179,7 @@ async function connectTerminal(code) {
     pairingAlert.classList.remove('hidden');
   }
 }
+
 
 // HTTP Polling fallback for Serverless platforms (e.g. Vercel) where WebSockets are unavailable
 function startHttpPolling(code, merchantInfo) {
