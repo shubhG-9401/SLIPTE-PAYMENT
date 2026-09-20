@@ -56,11 +56,31 @@ function broadcastToUserCode(userCode, data) {
   }
 }
 
+// HTTP Polling fallback tracking for Serverless (e.g. Vercel)
+// userPollers: userCode -> Map(sessionId -> lastSeenTimestamp)
+const userPollers = new Map();
+
+function cleanStalePollers() {
+  const now = Date.now();
+  for (const [code, sessions] of userPollers.entries()) {
+    for (const [sessionId, ts] of sessions.entries()) {
+      if (now - ts > 12000) {
+        sessions.delete(sessionId);
+      }
+    }
+    if (sessions.size === 0) userPollers.delete(code);
+  }
+}
+
 function getSlotStatus(merchant) {
   if (!merchant) return { code: 'MC-99', connectedCount: 0, maxSlots: 2, slotText: '0/2', slots: [] };
   const code = (merchant.merchant_code || (merchant.user_codes && merchant.user_codes[0]) || 'MC-99').toUpperCase();
+  cleanStalePollers();
   const sockets = userSockets.get(code);
-  const count = sockets ? sockets.size : 0;
+  const wsCount = sockets ? sockets.size : 0;
+  const pollSessions = userPollers.get(code);
+  const pollCount = pollSessions ? pollSessions.size : 0;
+  const count = Math.min(2, Math.max(wsCount, pollCount));
   return {
     code,
     connectedCount: count,
@@ -71,6 +91,7 @@ function getSlotStatus(merchant) {
     ]
   };
 }
+
 
 wss.on('connection', (ws) => {
   let boundRole = null;
@@ -662,6 +683,77 @@ app.get('/api/user/validate-code/:code', (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// User Terminal HTTP Polling Endpoint (Fallback for Serverless / Vercel without WebSockets)
+app.get('/api/user/poll/:code', (req, res) => {
+  try {
+    const rawCode = req.params.code;
+    const cleanCode = (rawCode || '').trim().toUpperCase();
+    const sessionId = req.query.sessionId || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'sess_' + cleanCode;
+
+    const merchant = MerchantStore.findByUserCode(cleanCode) || MerchantStore.findByMerchantCode(cleanCode);
+    if (!merchant) {
+      return res.status(404).json({ error: 'Merchant not found' });
+    }
+
+    if (merchant.status === 'blocked') {
+      return res.json({ success: false, blocked: true, message: 'Merchant account has been blocked by administrator.' });
+    }
+
+    // Register active polling heartbeat for slot status
+    if (!userPollers.has(cleanCode)) {
+      userPollers.set(cleanCode, new Map());
+    }
+    userPollers.get(cleanCode).set(sessionId, Date.now());
+
+    // Check latest transaction
+    const latestTxn = TransactionStore.getLatestForCode(cleanCode);
+    let activePayment = null;
+
+    if (latestTxn) {
+      const now = Date.now();
+      const exp = new Date(latestTxn.expires_at).getTime();
+
+      if ((latestTxn.status === 'pending' || latestTxn.status === 'submitted') && exp > now) {
+        const currentIdx = (latestTxn.current_part_index || 1) - 1;
+        const currentChunk = (latestTxn.chunks && latestTxn.chunks[currentIdx]) || null;
+        activePayment = {
+          type: 'active_payment',
+          transaction: latestTxn,
+          chunk: currentChunk,
+          currentPart: latestTxn.current_part_index || 1,
+          totalParts: latestTxn.split_count || 1,
+          remainingSeconds: Math.max(0, Math.floor((exp - now) / 1000))
+        };
+      } else if (latestTxn.status === 'approved' || latestTxn.status === 'denied') {
+        const updatedTime = new Date(latestTxn.updated_at || latestTxn.created_at).getTime();
+        if (now - updatedTime < 25000) {
+          activePayment = {
+            type: 'payment_decision',
+            transaction: latestTxn,
+            status: latestTxn.status,
+            message: latestTxn.status === 'approved' ? 'Payment Approved by Merchant! Thank you.' : 'Payment Denied by Merchant.'
+          };
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      code: cleanCode,
+      merchant: {
+        phone: merchant.phone.replace(/(\d{2})\d{4}(\d{4})/, '$1****$2'),
+        upi_id: merchant.upi_id,
+        provider: merchant.provider,
+        status: merchant.status
+      },
+      activePayment
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 app.post('/api/user/submit-payment', (req, res) => {
   try {
