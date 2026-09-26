@@ -85,9 +85,9 @@ const expiredTerminalBtn = document.getElementById('expiredTerminalBtn');
 document.addEventListener('DOMContentLoaded', () => {
   setupEventHandlers();
 
-  // Check URL query parameters for ?code=XYZ
+  // Check URL query parameters for ?code=XYZ or localStorage
   const params = new URLSearchParams(window.location.search);
-  const codeParam = params.get('code');
+  const codeParam = params.get('code') || localStorage.getItem('slipte_last_code');
   if (codeParam) {
     inputPairingCode.value = codeParam.toUpperCase();
     connectTerminal(codeParam.toUpperCase());
@@ -171,6 +171,7 @@ async function connectTerminal(code) {
     }
 
     currentCode = code;
+    try { localStorage.setItem('slipte_last_code', code); } catch (e) {}
 
     // Immediately transition into the paired terminal screen!
     onTerminalConnected({
@@ -215,8 +216,9 @@ function startHttpPolling(code, merchantInfo) {
         const ap = data.activePayment;
         const txn = ap.transaction || ap;
         const stateKey = `${ap.id}_part_${ap.currentPart}_${ap.status}`;
+        const isUIWaiting = paymentActiveState.classList.contains('hidden') && paymentSubmittedState.classList.contains('hidden');
 
-        if (lastProcessedTxnState !== stateKey) {
+        if (lastProcessedTxnState !== stateKey || isUIWaiting) {
           lastProcessedTxnState = stateKey;
           currentTxn = txn;
 
@@ -230,6 +232,9 @@ function startHttpPolling(code, merchantInfo) {
             }
             onPaymentReceived(txn, ap.remainingSeconds || 120, ap.qrDataUrl);
           }
+        } else if (ap.status === 'pending' && ap.qrDataUrl && (!qrImage.src || qrImage.src.endsWith('/'))) {
+          qrImage.src = ap.qrDataUrl;
+          qrLoading.classList.add('hidden');
         }
       } else {
         // No active pending payment

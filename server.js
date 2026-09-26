@@ -802,20 +802,24 @@ app.get(['/api/user/terminal/:code', '/api/user/poll/:code'], async (req, res) =
 
     if (activeTxn) {
       const currentIdx = (activeTxn.current_part_index || 1) - 1;
-      const currentChunk = (activeTxn.chunks && activeTxn.chunks[currentIdx]) || null;
+      const currentChunk = (activeTxn.chunks && activeTxn.chunks[currentIdx]) || (activeTxn.splits && activeTxn.splits[currentIdx]) || null;
       const now = Date.now();
       const exp = new Date(activeTxn.expires_at).getTime();
       const remainingSeconds = Math.max(0, Math.floor((exp - now) / 1000));
 
+      const targetUpiUri = (currentChunk && currentChunk.upi_uri) 
+        ? currentChunk.upi_uri 
+        : `upi://pay?pa=${(activeTxn.merchant_upi_id || 'merchant@paytm').trim()}&am=${Number(activeTxn.total_amount).toFixed(2).replace(/\.00$/, '')}&cu=INR&tn=Verified Merchant Account`;
+
       let qrDataUrl = null;
-      if (currentChunk && currentChunk.upi_uri) {
-        try {
-          qrDataUrl = await QRCode.toDataURL(currentChunk.upi_uri, {
-            width: 320,
-            margin: 2,
-            color: { dark: '#002970', light: '#ffffff' }
-          });
-        } catch (e) {}
+      try {
+        qrDataUrl = await QRCode.toDataURL(targetUpiUri, {
+          width: 320,
+          margin: 2,
+          color: { dark: '#002970', light: '#ffffff' }
+        });
+      } catch (e) {
+        console.error('QR generation error in terminal route:', e);
       }
 
       activePayment = {
@@ -828,7 +832,7 @@ app.get(['/api/user/terminal/:code', '/api/user/poll/:code'], async (req, res) =
         currentPart: activeTxn.current_part_index || 1,
         totalParts: activeTxn.split_count || 1,
         chunkAmount: currentChunk ? currentChunk.amount : activeTxn.total_amount,
-        upiUri: currentChunk ? currentChunk.upi_uri : null,
+        upiUri: targetUpiUri,
         qrDataUrl,
         remainingSeconds,
         utr: activeTxn.utr || null

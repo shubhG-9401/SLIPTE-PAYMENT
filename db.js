@@ -2,25 +2,50 @@ const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 
-let DATA_DIR = path.join(__dirname, 'data');
-let DB_FILE = path.join(DATA_DIR, 'database.json');
+const os = require('os');
 
-try {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-} catch (e) {
-  // Read-only filesystem fallback (e.g. Vercel, AWS Lambda, containers)
+function initDatabaseLocation() {
+  const repoDataDir = path.join(__dirname, 'data');
+  const repoDbFile = path.join(repoDataDir, 'database.json');
+
+  let writable = false;
   try {
-    DATA_DIR = path.join('/tmp', 'data');
-    DB_FILE = path.join(DATA_DIR, 'database.json');
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+    if (!fs.existsSync(repoDataDir)) {
+      fs.mkdirSync(repoDataDir, { recursive: true });
     }
-  } catch (err) {
-    console.warn('Filesystem read-only, will operate using in-memory store.');
+    const probe = path.join(repoDataDir, `.probe_${Date.now()}`);
+    fs.writeFileSync(probe, 'ok');
+    fs.unlinkSync(probe);
+    writable = true;
+  } catch (e) {
+    writable = false;
   }
+
+  if (writable) {
+    return { dataDir: repoDataDir, dbFile: repoDbFile };
+  }
+
+  // Read-only filesystem fallback (Vercel Serverless / AWS Lambda / Read-only containers)
+  const tmpDir = path.join(os.tmpdir(), 'slipte_data');
+  try {
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    }
+  } catch (e) {}
+
+  const tmpDbFile = path.join(tmpDir, 'database.json');
+  if (!fs.existsSync(tmpDbFile)) {
+    try {
+      if (fs.existsSync(repoDbFile)) {
+        fs.copyFileSync(repoDbFile, tmpDbFile);
+      }
+    } catch (e) {}
+  }
+
+  return { dataDir: tmpDir, dbFile: tmpDbFile };
 }
+
+const { dataDir: DATA_DIR, dbFile: DB_FILE } = initDatabaseLocation();
 
 // Initial structure with Default Admin and Seed Demo Merchant
 const defaultAdminPassword = bcrypt.hashSync('admin123', 8);
@@ -66,6 +91,30 @@ function readDb() {
       if (!Array.isArray(parsed.transactions)) parsed.transactions = [];
       if (!Array.isArray(parsed.merchants)) parsed.merchants = [];
 
+      // CRITICAL: Prevent losing active transactions created in memory
+      if (memoryCache && Array.isArray(memoryCache.transactions)) {
+        for (const memTxn of memoryCache.transactions) {
+          const diskTxn = parsed.transactions.find(t => t.id === memTxn.id);
+          if (!diskTxn) {
+            parsed.transactions.push(memTxn);
+          } else if (memTxn.status !== diskTxn.status || memTxn.current_part_index !== diskTxn.current_part_index) {
+            Object.assign(diskTxn, memTxn);
+          }
+        }
+      }
+
+      // Preserve active terminal heartbeats
+      if (memoryCache && Array.isArray(memoryCache.terminals)) {
+        for (const memTerm of memoryCache.terminals) {
+          const diskTerm = parsed.terminals.find(t => t.sessionId === memTerm.sessionId);
+          if (!diskTerm) {
+            parsed.terminals.push(memTerm);
+          } else if ((memTerm.lastSeen || 0) > (diskTerm.lastSeen || 0)) {
+            diskTerm.lastSeen = memTerm.lastSeen;
+          }
+        }
+      }
+
       // Ensure demo merchant always exists
       let modified = false;
       if (!parsed.merchants.some(m => m.merchant_code === 'MC-99' || m.id === 'm_demo')) {
@@ -97,6 +146,7 @@ function readDb() {
 
   if (memoryCache) {
     if (!Array.isArray(memoryCache.terminals)) memoryCache.terminals = [];
+    if (!Array.isArray(memoryCache.transactions)) memoryCache.transactions = [];
     return memoryCache;
   }
 
@@ -111,7 +161,14 @@ function writeDb(data) {
     fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), 'utf-8');
     fs.renameSync(tempFile, DB_FILE);
   } catch (err) {
-    console.warn('Filesystem write bypassed (using memory cache):', err.message);
+    console.warn('Filesystem write bypassed, using tmp/memory fallback:', err.message);
+    try {
+      const fallbackDir = path.join(os.tmpdir(), 'slipte_data');
+      if (!fs.existsSync(fallbackDir)) fs.mkdirSync(fallbackDir, { recursive: true });
+      const fallbackFile = path.join(fallbackDir, 'database.json');
+      fs.writeFileSync(fallbackFile + '.tmp', JSON.stringify(data, null, 2), 'utf-8');
+      fs.renameSync(fallbackFile + '.tmp', fallbackFile);
+    } catch (e2) {}
   }
 }
 
@@ -573,36 +630,37 @@ const TransactionStore = {
 
   getActiveForMerchant(merchant_id) {
     const db = readDb();
-    const active = db.transactions.find(t => 
-      t.merchant_id === merchant_id && 
-      (t.status === 'pending' || t.status === 'submitted')
-    );
-    if (!active) return null;
-
-    if (new Date(active.expires_at).getTime() < Date.now()) {
-      active.status = 'expired';
-      writeDb(db);
-      return null;
+    const txns = [...db.transactions].reverse();
+    for (const t of txns) {
+      if (t.merchant_id === merchant_id && (t.status === 'pending' || t.status === 'submitted')) {
+        if (new Date(t.expires_at).getTime() < Date.now()) {
+          t.status = 'expired';
+          writeDb(db);
+        } else {
+          return t;
+        }
+      }
     }
-    return active;
+    return null;
   },
 
   getActiveForUserCode(code) {
     const db = readDb();
     const cleanCode = (code || '').trim().toUpperCase();
-    const active = db.transactions.find(t => 
-      ((t.merchant_code && t.merchant_code.toUpperCase() === cleanCode) ||
-       (t.user_code && t.user_code.toUpperCase() === cleanCode)) &&
-      (t.status === 'pending' || t.status === 'submitted')
-    );
-    if (!active) return null;
-
-    if (new Date(active.expires_at).getTime() < Date.now()) {
-      active.status = 'expired';
-      writeDb(db);
-      return null;
+    const txns = [...db.transactions].reverse();
+    for (const t of txns) {
+      const match = (t.merchant_code && t.merchant_code.toUpperCase() === cleanCode) ||
+                    (t.user_code && t.user_code.toUpperCase() === cleanCode);
+      if (match && (t.status === 'pending' || t.status === 'submitted')) {
+        if (new Date(t.expires_at).getTime() < Date.now()) {
+          t.status = 'expired';
+          writeDb(db);
+        } else {
+          return t;
+        }
+      }
     }
-    return active;
+    return null;
   },
 
   getMerchantStats(merchant_id) {
