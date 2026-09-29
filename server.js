@@ -1108,16 +1108,48 @@ app.post('/api/admin/clear-fake-data', (req, res) => {
   }
 });
 
+function getLocalNetworkIp() {
+  const os = require('os');
+  const nets = os.networkInterfaces();
+  const candidates = [];
+  for (const name of Object.keys(nets)) {
+    if (/virtual|vmnet|vbox|loopback/i.test(name)) continue;
+    for (const net of nets[name]) {
+      if (net.family === 'IPv4' && !net.internal && net.address !== '127.0.0.1') {
+        candidates.push({ name, address: net.address });
+      }
+    }
+  }
+  const wifi = candidates.find(c => /wi-fi|wlan|wireless/i.test(c.name)) || candidates[0];
+  return wifi ? wifi.address : '127.0.0.1';
+}
 
-
+// Local Network Info for Phone / Mobile Wi-Fi Pairing
+app.get('/api/network-info', (req, res) => {
+  const ip = getLocalNetworkIp();
+  res.json({
+    success: true,
+    ip,
+    port: PORT,
+    urls: {
+      terminal: `http://${ip}:${PORT}/user.html`,
+      merchant: `http://${ip}:${PORT}/merchant/`,
+      landing: `http://${ip}:${PORT}/`
+    }
+  });
+});
 
 if (require.main === module) {
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`UPI Payment System running on port ${PORT}:`);
-    console.log(`- Local PC:       http://localhost:${PORT}`);
-    console.log(`- Admin Portal:   http://localhost:${PORT}/admin.html`);
-    console.log(`- Merchant:       http://localhost:${PORT}/merchant.html`);
-    console.log(`- User Terminal:  http://localhost:${PORT}/user.html`);
+    const localIp = getLocalNetworkIp();
+    console.log(`\n=============================================================`);
+    console.log(`🚀 UPI Multi-Portal System running on port ${PORT}:`);
+    console.log(`- Local PC:             http://localhost:${PORT}`);
+    console.log(`- Phone / Wi-Fi Access: http://${localIp}:${PORT}`);
+    console.log(`- Mobile User Terminal: http://${localIp}:${PORT}/user.html?code=999999`);
+    console.log(`- Merchant Portal (PC): http://${localIp}:${PORT}/merchant/`);
+    console.log(`- Admin Console:        http://${localIp}:${PORT}/admin.html`);
+    console.log(`=============================================================\n`);
   });
 }
 

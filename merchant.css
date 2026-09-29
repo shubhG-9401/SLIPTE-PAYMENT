@@ -1454,3 +1454,118 @@ input:focus, .select-input:focus {
   color: #4c0519;
 }
 
+/* Phone Connection Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-card {
+  background: #ffffff;
+  border-radius: 16px;
+  max-width: 440px;
+  width: 100%;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.modal-header h3 {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #002970;
+  margin: 0;
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  color: #64748b;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.modal-body {
+  padding: 20px;
+  text-align: center;
+}
+
+.modal-desc {
+  font-size: 0.88rem;
+  color: #334155;
+  margin-bottom: 14px;
+  line-height: 1.45;
+}
+
+.modal-qr-box {
+  background: #ffffff;
+  padding: 12px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 12px;
+  display: inline-block;
+  margin-bottom: 14px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.04);
+}
+
+.phone-qr-img {
+  width: 180px;
+  height: 180px;
+  display: block;
+  object-fit: contain;
+}
+
+.modal-url-box {
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  text-align: left;
+}
+
+.url-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.phone-url-text {
+  display: block;
+  font-size: 0.82rem;
+  color: #0284c7;
+  word-break: break-all;
+  font-family: monospace;
+  margin-bottom: 8px;
+}
+
+.modal-hint-box {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.78rem;
+  color: #1e40af;
+  text-align: left;
+  line-height: 1.4;
+}
+
+

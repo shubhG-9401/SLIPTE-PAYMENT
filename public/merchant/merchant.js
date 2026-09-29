@@ -713,6 +713,68 @@ function setupDashboardControls() {
     });
   }
 
+  // Phone Connect Modal Handler (Mobile Wi-Fi QR Code)
+  const phoneModalBtn = document.getElementById('phoneQrModalBtn');
+  const phoneConnectModal = document.getElementById('phoneConnectModal');
+  const closePhoneModalBtn = document.getElementById('closePhoneModalBtn');
+  const phoneTerminalQrImg = document.getElementById('phoneTerminalQrImg');
+  const phoneTerminalUrlText = document.getElementById('phoneTerminalUrlText');
+  const copyPhoneUrlBtn = document.getElementById('copyPhoneUrlBtn');
+
+  async function openPhoneConnectModal() {
+    const code = (currentMerchant && currentMerchant.merchant_code) || document.getElementById('dashMerchantCode').textContent || '999999';
+    let host = window.location.host;
+
+    // If accessed from localhost on PC, resolve local LAN IP (e.g. 192.168.1.3:3000) for phone
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      try {
+        const netRes = await fetch('/api/network-info');
+        const netData = await netRes.json();
+        if (netData.success && netData.ip && netData.ip !== '127.0.0.1') {
+          host = `${netData.ip}:${netData.port || 3000}`;
+        }
+      } catch (e) {}
+    }
+
+    const phoneUrl = `${window.location.protocol}//${host}/user.html?code=${encodeURIComponent(code)}`;
+    if (phoneTerminalUrlText) phoneTerminalUrlText.textContent = phoneUrl;
+
+    if (phoneTerminalQrImg) {
+      try {
+        const qrRes = await fetch(`/api/qr?text=${encodeURIComponent(phoneUrl)}`);
+        const qrData = await qrRes.json();
+        if (qrData.dataUrl) {
+          phoneTerminalQrImg.src = qrData.dataUrl;
+        }
+      } catch (e) {
+        phoneTerminalQrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(phoneUrl)}`;
+      }
+    }
+
+    if (phoneConnectModal) phoneConnectModal.classList.remove('hidden');
+  }
+
+  if (phoneModalBtn) {
+    phoneModalBtn.addEventListener('click', openPhoneConnectModal);
+  }
+
+  if (closePhoneModalBtn && phoneConnectModal) {
+    closePhoneModalBtn.addEventListener('click', () => phoneConnectModal.classList.add('hidden'));
+    phoneConnectModal.addEventListener('click', (e) => {
+      if (e.target === phoneConnectModal) phoneConnectModal.classList.add('hidden');
+    });
+  }
+
+  if (copyPhoneUrlBtn && phoneTerminalUrlText) {
+    copyPhoneUrlBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(phoneTerminalUrlText.textContent).then(() => {
+        const orig = copyPhoneUrlBtn.textContent;
+        copyPhoneUrlBtn.textContent = '✓ Copied!';
+        setTimeout(() => copyPhoneUrlBtn.textContent = orig, 1500);
+      });
+    });
+  }
+
   // Copy Unique Merchant Code Button
   const copyBtn = document.getElementById('copyMerchantCodeBtn');
   if (copyBtn) {
