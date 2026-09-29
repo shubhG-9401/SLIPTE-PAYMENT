@@ -812,12 +812,24 @@ input:focus, .select-input:focus {
   flex: 1;
 }
 
-/* Dashboard Grid */
+/* Dashboard Grid & Column Layout */
 .dashboard-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-items: start;
   gap: 24px;
   margin-bottom: 24px;
+}
+
+.dashboard-col {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.dashboard-col .dashboard-card {
+  margin-bottom: 0;
 }
 
 @media (max-width: 860px) {
@@ -1133,18 +1145,18 @@ input:focus, .select-input:focus {
 .code-spotlight-box {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
   border: 2px solid #0284c7;
   border-radius: 14px;
-  padding: 20px 24px;
-  gap: 20px;
+  padding: 18px 20px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
 .spotlight-left {
-  flex: 1;
-  min-width: 260px;
+  flex: 1 1 220px;
+  min-width: 200px;
 }
 
 .spotlight-label {
@@ -1185,8 +1197,9 @@ input:focus, .select-input:focus {
 .spotlight-right {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1 1 240px;
 }
 
 .slots-kpi-badge {
@@ -1217,7 +1230,8 @@ input:focus, .select-input:focus {
 
 .slot-indicators {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .slot-pill {
