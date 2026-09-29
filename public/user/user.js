@@ -415,6 +415,10 @@ function onPaymentReceived(txn, secs = 120, preloadedQrDataUrl = null) {
   }
 
   currentPartAmount.textContent = `Pay ${formatCurrency(currentChunk.amount)}`;
+  const currentChunkUpi = currentChunk.upi_id || txn.merchant_upi_id || 'paytm.s1m66cw@pty';
+  const destUpiEl = document.getElementById('currentPartUpi');
+  if (destUpiEl) destUpiEl.textContent = currentChunkUpi;
+
   if (upiIntentBtn) upiIntentBtn.href = currentChunk.upi_uri;
 
   if (preloadedQrDataUrl) {
@@ -455,6 +459,10 @@ function onChunkApprovedNext(msg) {
   splitNoticeBadge.textContent = `Payload ${msg.currentPart} of ${msg.totalParts} (Sequential Auto-Split)`;
 
   currentPartAmount.textContent = `Pay ${formatCurrency(chunk.amount)}`;
+  const nextChunkUpi = (chunk && chunk.upi_id) || msg.transaction.merchant_upi_id || 'paytm.s1m66cw@pty';
+  const destUpiEl = document.getElementById('currentPartUpi');
+  if (destUpiEl) destUpiEl.textContent = nextChunkUpi;
+
   if (upiIntentBtn) upiIntentBtn.href = chunk.upi_uri;
 
   qrLoading.classList.remove('hidden');

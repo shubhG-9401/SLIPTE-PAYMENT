@@ -417,11 +417,24 @@ const MerchantStore = {
     return merchant.user_codes;
   },
 
-  updateUpi(id, upiId) {
+  updateUpi(id, upiId, upiIds) {
     const db = readDb();
     const merchant = db.merchants.find(m => m.id === id);
     if (!merchant) return null;
-    merchant.upi_id = upiId.trim();
+    let upiList = [];
+    if (Array.isArray(upiIds) && upiIds.length > 0) {
+      upiList = upiIds.map(u => (typeof u === 'string' ? u.trim() : '')).filter(u => u && u.includes('@'));
+    }
+    if (upiList.length === 0 && upiId && typeof upiId === 'string' && upiId.trim() && upiId.includes('@')) {
+      upiList = [upiId.trim()];
+    }
+    if (upiList.length > 0) {
+      merchant.upi_ids = upiList;
+      merchant.upi_id = upiList[0];
+    } else if (upiId) {
+      merchant.upi_id = upiId.trim();
+      merchant.upi_ids = [merchant.upi_id];
+    }
     writeDb(db);
     return sanitizeMerchant(merchant);
   },
@@ -448,6 +461,7 @@ const MerchantStore = {
           password: demoMerchantPassword,
           provider: 'paytm',
           upi_id: 'paytm.s1m66cw@pty',
+          upi_ids: ['paytm.s1m66cw@pty'],
           fee_paid: true,
           razorpay_payment_id: 'pay_demo_init',
           status: 'active',
@@ -476,29 +490,51 @@ function sanitizeMerchant(m) {
   if (!safe.merchant_code && safe.user_codes && safe.user_codes[0]) {
     safe.merchant_code = safe.user_codes[0];
   }
+  if (!Array.isArray(safe.upi_ids) || safe.upi_ids.length === 0) {
+    safe.upi_ids = [safe.upi_id || 'merchant@paytm'];
+  }
   return safe;
 }
 
 // Transaction methods with Sequential Payload Queue
 const TransactionStore = {
-  create({ merchant_id, user_code, total_amount, upi_id }) {
+  create({ merchant_id, user_code, total_amount, upi_id, upi_ids }) {
     const db = readDb();
     const merchant = db.merchants.find(m => m.id === merchant_id);
     if (!merchant) throw new Error('Merchant not found');
 
-    if (upi_id && typeof upi_id === 'string' && upi_id.trim() && upi_id.includes('@')) {
-      merchant.upi_id = upi_id.trim();
+    let upiList = [];
+    if (Array.isArray(upi_ids) && upi_ids.length > 0) {
+      upiList = upi_ids.map(u => (typeof u === 'string' ? u.trim() : '')).filter(u => u && u.includes('@'));
     }
-    const merchantUpi = merchant.upi_id || 'merchant@paytm';
+    if (upiList.length === 0 && upi_id && typeof upi_id === 'string' && upi_id.trim() && upi_id.includes('@')) {
+      upiList = [upi_id.trim()];
+    }
+    if (upiList.length === 0) {
+      if (Array.isArray(merchant.upi_ids) && merchant.upi_ids.length > 0) {
+        upiList = merchant.upi_ids.filter(u => u && u.includes('@'));
+      }
+      if (upiList.length === 0 && merchant.upi_id) {
+        upiList = [merchant.upi_id.trim()];
+      }
+    }
+    if (upiList.length === 0) {
+      upiList = ['merchant@paytm'];
+    }
+
+    merchant.upi_ids = upiList;
+    merchant.upi_id = upiList[0];
 
     const splitValues = splitAmount(total_amount);
     const merchantCode = merchant.merchant_code || (merchant.user_codes && merchant.user_codes[0]) || 'MC-99';
     const chunks = splitValues.map((amt, idx) => {
+      const chunkUpi = upiList[idx % upiList.length];
       return {
         part_index: idx + 1,
         total_parts: splitValues.length,
         amount: amt,
-        upi_uri: buildUpiUri(merchantUpi, amt),
+        upi_id: chunkUpi,
+        upi_uri: buildUpiUri(chunkUpi, amt),
         status: idx === 0 ? 'pending' : 'queued',
         approved_at: null,
         denied_at: null
@@ -514,6 +550,7 @@ const TransactionStore = {
       merchant_code: merchantCode,
       user_code: user_code || merchantCode,
       merchant_upi_id: merchant.upi_id,
+      merchant_upi_ids: upiList,
       merchant_phone: merchant.phone,
       total_amount: Number(total_amount),
       split_count: splitValues.length,

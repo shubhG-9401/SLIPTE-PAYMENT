@@ -500,6 +500,25 @@ body {
   color: #64748b;
 }
 
+.meta-upi-route {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  margin: 6px auto;
+  font-family: monospace;
+}
+
+.meta-upi-route strong {
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
 /* Actions */
 .upi-actions-row {
   display: flex;

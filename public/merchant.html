@@ -153,12 +153,27 @@
 
             <form id="paymentRequestForm">
               <div class="form-group">
-                <label for="merchantDestinationUpi">Merchant Destination UPI ID</label>
-                <div style="display: flex; gap: 8px;">
-                  <input type="text" id="merchantDestinationUpi" placeholder="e.g. paytm.s1m66cw@pty" required style="flex: 1;">
-                  <button type="button" id="saveUpiBtn" class="btn btn-outline btn-sm" style="white-space: nowrap;">💾 Save UPI</button>
+                <label for="upiCountSelect">Select Number of Merchant UPI IDs</label>
+                <select id="upiCountSelect" class="select-input" style="font-weight: 600; color: #002970;">
+                  <option value="1" selected>1 UPI ID (Single Destination)</option>
+                  <option value="2">2 UPI IDs (Multi-Account Routing)</option>
+                  <option value="3">3 UPI IDs (Multi-Account Routing)</option>
+                  <option value="4">4 UPI IDs (Multi-Account Routing)</option>
+                  <option value="5">5 UPI IDs (Multi-Account Routing)</option>
+                </select>
+                <small class="field-hint">Select how many different merchant UPI IDs to cycle payments across.</small>
+              </div>
+
+              <!-- Dynamic Destination UPI IDs Container -->
+              <div class="form-group" id="upiInputsGroup">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                  <label style="margin-bottom: 0;">Merchant Destination UPI ID(s)</label>
+                  <button type="button" id="saveUpiBtn" class="btn btn-outline btn-sm" style="white-space: nowrap; padding: 4px 10px; font-size: 0.78rem;">💾 Save UPI IDs</button>
                 </div>
-                <small class="field-hint">Dynamic QR codes will route funds directly to this UPI ID (e.g. <code>paytm.s1m66cw@pty</code>)</small>
+                <div id="dynamicUpiInputs" class="dynamic-upi-container">
+                  <!-- Injected dynamically by merchant.js according to upiCountSelect -->
+                </div>
+                <small class="field-hint">Dynamic QR codes will sequentially route split payment payloads across these UPI IDs.</small>
               </div>
 
               <div class="form-group">

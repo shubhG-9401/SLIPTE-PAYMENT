@@ -1568,4 +1568,71 @@ input:focus, .select-input:focus {
   line-height: 1.4;
 }
 
+/* Dynamic Destination UPI Input Rows */
+.dynamic-upi-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.upi-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  padding: 6px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.upi-input-row:focus-within {
+  border-color: #002970;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(0, 41, 112, 0.1);
+}
+
+.upi-row-badge {
+  background: #002970;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+
+.upi-row-input {
+  flex: 1;
+  border: none !important;
+  background: transparent !important;
+  padding: 6px 8px !important;
+  font-size: 0.86rem !important;
+  font-family: inherit;
+  color: #1e293b;
+  outline: none;
+}
+
+.upi-row-input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.chunk-upi-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: monospace;
+  margin-top: 4px;
+}
+
 

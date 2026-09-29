@@ -460,10 +460,9 @@ function onLoginSuccess(merchant) {
   navMerchantPhone.textContent = merchant.phone + (isDemo ? ' [Demo]' : '');
   document.getElementById('dashMerchantPhone').textContent = merchant.phone;
   document.getElementById('dashMerchantUpi').textContent = merchant.upi_id || 'paytm.s1m66cw@pty';
-  const destUpiInput = document.getElementById('merchantDestinationUpi');
-  if (destUpiInput) {
-    destUpiInput.value = merchant.upi_id || 'paytm.s1m66cw@pty';
-  }
+
+  // Initialize Dynamic Destination UPI Inputs
+  initMerchantUpiInputs(merchant.upi_ids || (merchant.upi_id ? [merchant.upi_id] : ['paytm.s1m66cw@pty']));
 
   const code = merchant.merchant_code || (merchant.user_codes && merchant.user_codes[0]) || '999999';
   const codeEl = document.getElementById('dashMerchantCode');
@@ -788,22 +787,90 @@ function setupDashboardControls() {
     });
   }
 
-  // Destination UPI input, save button & Amount input live split preview
+  // Multi-Destination UPI & Live Split Preview Controller
   const amountInput = document.getElementById('paymentAmount');
-  const destUpiInput = document.getElementById('merchantDestinationUpi');
+  const countSelect = document.getElementById('upiCountSelect');
   const saveUpiBtn = document.getElementById('saveUpiBtn');
   const splitBox = document.getElementById('splitPreviewBox');
   const splitTitle = document.getElementById('splitPreviewTitle');
   const splitPills = document.getElementById('splitPillsContainer');
   const pushBtn = document.getElementById('pushPaymentBtn');
 
-  function getActiveDestinationUpi() {
-    return (destUpiInput && destUpiInput.value.trim()) || (currentMerchant && currentMerchant.upi_id) || 'paytm.s1m66cw@pty';
+  if (countSelect) {
+    countSelect.addEventListener('change', () => {
+      const count = parseInt(countSelect.value, 10) || 1;
+      const currentValues = Array.from(document.querySelectorAll('.upi-row-input')).map(inp => inp.value.trim());
+      renderDynamicUpiInputs(count, currentValues);
+    });
+  }
+
+  function getActiveDestinationUpis() {
+    const container = document.getElementById('dynamicUpiInputs');
+    if (!container) return [(currentMerchant && currentMerchant.upi_id) || 'paytm.s1m66cw@pty'];
+    const inputs = Array.from(container.querySelectorAll('.upi-row-input'));
+    const values = inputs.map(inp => inp.value.trim()).filter(v => v && v.includes('@'));
+    if (values.length > 0) return values;
+    return [(currentMerchant && currentMerchant.upi_id) || 'paytm.s1m66cw@pty'];
+  }
+
+  window.initMerchantUpiInputs = function(initialUpiList) {
+    const sel = document.getElementById('upiCountSelect');
+    const container = document.getElementById('dynamicUpiInputs');
+    if (!container || !sel) return;
+
+    let upis = Array.isArray(initialUpiList) && initialUpiList.length > 0 
+      ? initialUpiList.filter(u => typeof u === 'string' && u.includes('@')) 
+      : [(currentMerchant && currentMerchant.upi_id) || 'paytm.s1m66cw@pty'];
+
+    if (upis.length === 0) upis = ['paytm.s1m66cw@pty'];
+
+    const count = Math.min(5, Math.max(1, upis.length));
+    sel.value = String(count);
+    renderDynamicUpiInputs(count, upis);
+  };
+
+  function renderDynamicUpiInputs(count, existingValues = []) {
+    const container = document.getElementById('dynamicUpiInputs');
+    if (!container) return;
+
+    if (!existingValues || existingValues.length === 0) {
+      existingValues = Array.from(container.querySelectorAll('.upi-row-input')).map(inp => inp.value.trim());
+    }
+
+    const defaultUpi = (currentMerchant && currentMerchant.upi_id) || 'paytm.s1m66cw@pty';
+    container.innerHTML = '';
+
+    for (let i = 0; i < count; i++) {
+      const row = document.createElement('div');
+      row.className = 'upi-input-row';
+
+      const badge = document.createElement('span');
+      badge.className = 'upi-row-badge';
+      badge.textContent = `UPI #${i + 1}${i === 0 ? ' (Primary)' : ''}`;
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'upi-row-input';
+      input.id = `destUpi_${i + 1}`;
+      input.placeholder = i === 0 ? defaultUpi : `e.g. branch${i + 1}@paytm or store${i + 1}@paytm`;
+      input.value = existingValues[i] || (i === 0 ? defaultUpi : '');
+      input.required = (i === 0);
+
+      input.addEventListener('input', () => {
+        updateSplitPreview();
+      });
+
+      row.appendChild(badge);
+      row.appendChild(input);
+      container.appendChild(row);
+    }
+
+    updateSplitPreview();
   }
 
   function updateSplitPreview() {
     const val = parseFloat(amountInput.value);
-    const upiId = getActiveDestinationUpi();
+    const upiList = getActiveDestinationUpis();
 
     if (!val || val <= 0) {
       splitTitle.textContent = 'Auto-Splitting Preview';
@@ -816,25 +883,33 @@ function setupDashboardControls() {
 
     if (parts.length === 1) {
       // Condition A (Amount <= ₹1999)
+      const targetUpi = upiList[0];
       const formattedAmt = parts[0].toFixed(2).replace(/\.00$/, '');
-      const upiUri = `upi://pay?pa=${upiId}&am=${formattedAmt}&cu=INR&tn=Verified Merchant Account`;
+      const upiUri = `upi://pay?pa=${targetUpi}&am=${formattedAmt}&cu=INR&tn=Verified Merchant Account`;
       splitTitle.textContent = `Condition A (Amount ≤ ₹1999): Single Payload`;
       splitPills.innerHTML = `
         <div class="split-preview-item">
-          <span class="split-pill single">Payload 1: ${formatCurrency(parts[0])}</span>
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span class="split-pill single">Payload 1: ${formatCurrency(parts[0])}</span>
+            <span class="chunk-upi-target">➔ Dest UPI: ${targetUpi}</span>
+          </div>
           <code class="upi-uri-string">${upiUri}</code>
         </div>
       `;
       if (pushBtn) pushBtn.textContent = `Push Payload 1 (${formatCurrency(parts[0])}) to User →`;
     } else {
       // Condition B (Amount > ₹1999)
-      splitTitle.textContent = `Condition B (Amount > ₹1999): Auto-Split into ${parts.length} Sequential Payloads (Max ₹1999 each)`;
+      splitTitle.textContent = `Condition B (Amount > ₹1999): Auto-Split into ${parts.length} Sequential Payloads (${upiList.length > 1 ? `Routed across ${upiList.length} Merchant UPI IDs` : 'Max ₹1999 each'})`;
       splitPills.innerHTML = parts.map((amt, i) => {
+        const chunkUpi = upiList[i % upiList.length];
         const formattedAmt = amt.toFixed(2).replace(/\.00$/, '');
-        const chunkUri = `upi://pay?pa=${upiId}&am=${formattedAmt}&cu=INR&tn=Verified Merchant Account`;
+        const chunkUri = `upi://pay?pa=${chunkUpi}&am=${formattedAmt}&cu=INR&tn=Verified Merchant Account`;
         return `
           <div class="split-preview-item">
-            <span class="split-pill chunk">Payload ${i + 1}: ${formatCurrency(amt)}</span>
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <span class="split-pill chunk">Payload ${i + 1}: ${formatCurrency(amt)}</span>
+              <span class="chunk-upi-target">➔ Dest UPI #${(i % upiList.length) + 1}: ${chunkUpi}</span>
+            </div>
             <code class="upi-uri-string">${chunkUri}</code>
             <span class="chunk-note">${i === 0 ? 'Pushed First (2-min timer)' : 'Queued sequentially after approval'}</span>
           </div>
@@ -845,47 +920,49 @@ function setupDashboardControls() {
   }
 
   amountInput.addEventListener('input', updateSplitPreview);
-  if (destUpiInput) {
-    destUpiInput.addEventListener('input', updateSplitPreview);
-  }
 
-  if (saveUpiBtn && destUpiInput) {
+  if (saveUpiBtn) {
     saveUpiBtn.addEventListener('click', async () => {
-      const upi = destUpiInput.value.trim();
-      if (!upi || !upi.includes('@')) {
-        return alert('Please enter a valid Destination UPI ID with @ (e.g. paytm.s1m66cw@pty)');
+      const upiList = getActiveDestinationUpis();
+      if (!upiList || upiList.length === 0) {
+        return alert('Please enter at least one valid Destination UPI ID with @ (e.g. paytm.s1m66cw@pty)');
       }
       try {
         const res = await fetch('/api/merchant/update-upi', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ merchantId: currentMerchant.id, upi_id: upi })
+          body: JSON.stringify({
+            merchantId: currentMerchant.id,
+            upi_id: upiList[0],
+            upi_ids: upiList
+          })
         });
         const data = await res.json();
         if (data.success) {
-          currentMerchant.upi_id = upi;
+          currentMerchant.upi_id = upiList[0];
+          currentMerchant.upi_ids = upiList;
           const dashUpiEl = document.getElementById('dashMerchantUpi');
-          if (dashUpiEl) dashUpiEl.textContent = upi;
-          saveUpiBtn.textContent = '✓ Saved!';
-          setTimeout(() => saveUpiBtn.textContent = '💾 Save UPI', 2000);
+          if (dashUpiEl) dashUpiEl.textContent = upiList[0];
+          saveUpiBtn.textContent = `✓ Saved (${upiList.length})!`;
+          setTimeout(() => saveUpiBtn.textContent = '💾 Save UPI IDs', 2000);
           updateSplitPreview();
         } else {
           alert('Failed to update UPI: ' + (data.error || 'Unknown error'));
         }
       } catch (err) {
-        alert('Network error saving UPI ID: ' + err.message);
+        alert('Network error saving UPI IDs: ' + err.message);
       }
     });
   }
 
-  // Payment Request Submit
+  // Payment Request Submit with Multi-UPI Routing Support
   document.getElementById('paymentRequestForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const amount = parseFloat(amountInput.value);
     if (!amount || amount <= 0) return alert('Please enter a valid payment amount');
-    const enteredUpi = getActiveDestinationUpi();
-    if (!enteredUpi || !enteredUpi.includes('@')) {
-      return alert('Please enter a valid Destination UPI ID with @ (e.g. paytm.s1m66cw@pty)');
+    const upiList = getActiveDestinationUpis();
+    if (!upiList || upiList.length === 0) {
+      return alert('Please enter at least one valid Destination UPI ID with @ (e.g. paytm.s1m66cw@pty)');
     }
 
     try {
@@ -897,16 +974,18 @@ function setupDashboardControls() {
           merchantId: currentMerchant.id,
           targetSlotCode: code,
           amount,
-          upi_id: enteredUpi
+          upi_id: upiList[0],
+          upi_ids: upiList
         })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create payment request');
 
       if (currentMerchant) {
-        currentMerchant.upi_id = enteredUpi;
+        currentMerchant.upi_id = upiList[0];
+        currentMerchant.upi_ids = upiList;
         const dashUpiEl = document.getElementById('dashMerchantUpi');
-        if (dashUpiEl) dashUpiEl.textContent = enteredUpi;
+        if (dashUpiEl) dashUpiEl.textContent = upiList[0];
       }
 
       setActiveTransaction(data.transaction, 120);
@@ -938,13 +1017,14 @@ function setActiveTransaction(txn, remainingSeconds = 120) {
 
   const currentIdx = (txn.current_part_index || 1) - 1;
   const currentChunk = (txn.chunks && txn.chunks[currentIdx]) || (txn.splits && txn.splits[currentIdx]) || { amount: txn.total_amount };
+  const chunkUpi = currentChunk.upi_id || txn.merchant_upi_id || (currentMerchant && currentMerchant.upi_id);
 
   document.getElementById('activeChunkTag').textContent = `Payload ${txn.current_part_index || 1} of ${txn.split_count || 1}`;
   document.getElementById('activeTotalTag').textContent = `Total: ${formatCurrency(txn.total_amount)}`;
   document.getElementById('activeAmountVal').textContent = formatCurrency(currentChunk.amount);
   document.getElementById('activeSplitSubtext').textContent = txn.split_count > 1 
-    ? `Sequential Chunk ${txn.current_part_index || 1} of ${txn.split_count}`
-    : `Single Payment Payload`;
+    ? `Sequential Chunk ${txn.current_part_index || 1} of ${txn.split_count}${chunkUpi ? ` • Receiving on ${chunkUpi}` : ''}`
+    : `Single Payment Payload${chunkUpi ? ` • Receiving on ${chunkUpi}` : ''}`;
 
   const banner = document.getElementById('activeStatusBanner');
   banner.className = 'active-status-banner';

@@ -571,11 +571,15 @@ app.post('/api/merchant/regenerate-codes', (req, res) => {
 // Merchant initiates payment request
 app.post('/api/merchant/update-upi', (req, res) => {
   try {
-    const { merchantId, upi_id } = req.body;
-    if (!merchantId || !upi_id || !upi_id.includes('@')) {
-      return res.status(400).json({ error: 'Valid merchantId and destination UPI ID containing @ are required' });
+    const { merchantId, upi_id, upi_ids } = req.body;
+    if (!merchantId) {
+      return res.status(400).json({ error: 'Valid merchantId is required' });
     }
-    const updated = MerchantStore.updateUpi(merchantId, upi_id);
+    const hasValidUpi = (upi_id && upi_id.includes('@')) || (Array.isArray(upi_ids) && upi_ids.some(u => typeof u === 'string' && u.includes('@')));
+    if (!hasValidUpi) {
+      return res.status(400).json({ error: 'Valid destination UPI ID containing @ is required' });
+    }
+    const updated = MerchantStore.updateUpi(merchantId, upi_id, upi_ids);
     if (!updated) return res.status(404).json({ error: 'Merchant not found' });
     res.json({ success: true, merchant: updated });
   } catch (err) {
@@ -586,7 +590,7 @@ app.post('/api/merchant/update-upi', (req, res) => {
 // Payment Request Dispatcher (Single or Auto-Split Chunks <= 1999)
 app.post(['/api/merchant/payment-request', '/api/merchant/dispatch'], (req, res) => {
   try {
-    const { merchantId, targetSlotCode, amount, upi_id, targetTerminal } = req.body;
+    const { merchantId, targetSlotCode, amount, upi_id, upi_ids, targetTerminal } = req.body;
     if (targetTerminal === 3 || targetTerminal === '3' || (targetSlotCode && (targetSlotCode.endsWith('-3') || targetSlotCode.includes('slot3') || targetSlotCode.includes('terminal3')))) {
       return res.status(403).json({
         error: '⚠️ Access Blocked: Terminal 3 is not allowed. Only Terminal 1 and Terminal 2 are authorized for your merchant code.',
@@ -606,7 +610,8 @@ app.post(['/api/merchant/payment-request', '/api/merchant/dispatch'], (req, res)
       merchant_id: merchantId,
       user_code: targetCode,
       total_amount: Number(amount),
-      upi_id: upi_id || merchant.upi_id
+      upi_id: upi_id || merchant.upi_id,
+      upi_ids: Array.isArray(upi_ids) && upi_ids.length > 0 ? upi_ids : undefined
     });
 
     const currentChunk = txn.chunks[0];
@@ -899,6 +904,8 @@ app.get(['/api/user/terminal/:code', '/api/user/poll/:code'], async (req, res) =
         type: 'active_payment',
         id: activeTxn.id,
         transaction: activeTxn,
+        chunk: currentChunk,
+        chunkUpi: (currentChunk && currentChunk.upi_id) || activeTxn.merchant_upi_id,
         status: activeTxn.status,
         total_amount: activeTxn.total_amount,
         split_count: activeTxn.split_count,

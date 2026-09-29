@@ -76,12 +76,13 @@ async function runTests() {
   }
 
   // 3. Test Terminal 1 connection (Slot 1)
+  const targetCode = newMerchantCode || '999999';
   const session1 = 'test-session-term-1';
   try {
     const res = await request({
       hostname: '127.0.0.1',
       port: 3000,
-      path: `/api/user/poll/999999?sessionId=${session1}`,
+      path: `/api/user/poll/${targetCode}?sessionId=${session1}`,
       method: 'GET'
     });
     const slotNum = res.data.slot || res.data.slotNumber;
@@ -102,7 +103,7 @@ async function runTests() {
     const res = await request({
       hostname: '127.0.0.1',
       port: 3000,
-      path: `/api/user/poll/999999?sessionId=${session2}`,
+      path: `/api/user/poll/${targetCode}?sessionId=${session2}`,
       method: 'GET'
     });
     const slotNum = res.data.slot || res.data.slotNumber;
@@ -123,7 +124,7 @@ async function runTests() {
     const res = await request({
       hostname: '127.0.0.1',
       port: 3000,
-      path: `/api/user/poll/999999?sessionId=${session3}`,
+      path: `/api/user/poll/${targetCode}?sessionId=${session3}`,
       method: 'GET'
     });
     if (res.status === 403 && res.data.terminal3Blocked === true && res.data.message.includes('ACCESS BLOCKED')) {
