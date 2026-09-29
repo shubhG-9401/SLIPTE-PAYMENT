@@ -24,15 +24,30 @@
     <div id="pairingBox" class="terminal-card pairing-card">
       <div class="card-icon">🔗</div>
       <h2>Connect to Merchant Terminal</h2>
-      <p class="subtitle">Enter the merchant's Unique Code (e.g. MC-99) to pair</p>
+      <p class="subtitle">Enter the merchant's 6-digit Unique Code (e.g. 999999) to pair</p>
 
       <form id="pairingForm">
         <div class="code-input-wrapper">
-          <input type="text" id="inputPairingCode" placeholder="e.g. MC-99" maxlength="12" autocomplete="off" required>
+          <input type="text" id="inputPairingCode" placeholder="e.g. 999999" maxlength="12" autocomplete="off" required>
         </div>
         <button type="submit" class="btn-upi-primary">Connect Terminal &rarr;</button>
         <div id="pairingAlert" class="alert hidden"></div>
       </form>
+    </div>
+
+    <!-- TERMINAL 3 BLOCKED / WARNING STATE -->
+    <div id="terminalBlockedState" class="terminal-card blocked-card hidden">
+      <div class="warning-icon-badge">⚠️</div>
+      <h2 class="warning-title">ACCESS BLOCKED</h2>
+      <div class="warning-subtitle">Terminal 3 Limit Reached</div>
+      <div class="warning-box">
+        <p class="warning-main-text"><strong>Maximum 2 Terminals Allowed</strong></p>
+        <p class="warning-detail-text">The merchant with code <strong id="blockedMerchantCode">------</strong> already has <strong>2 active terminals</strong> (Terminal 1 &amp; Terminal 2) in use.</p>
+        <div class="warning-callout">
+          🚫 <strong>Terminal 3 access is blocked.</strong> Your merchant's system permits a maximum of 2 connected customer terminals concurrently.
+        </div>
+      </div>
+      <button type="button" id="retryPairingBtn" class="btn-upi-primary" style="margin-top: 18px;">&larr; Try Another Code</button>
     </div>
 
     <!-- STEP 2: THE "PLAIN LIGHT BLUE WRITTEN UPI BOX" -->

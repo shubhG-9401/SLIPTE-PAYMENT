@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UPI Multi-Portal Payment System</title>
+  <link rel="stylesheet" href="/index.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <header class="hero">
+      <div class="badge">Next-Gen UPI Platform</div>
+      <h1>Unified Multi-Portal Payment Ecosystem</h1>
+      <p>Seamless real-time transactions with dynamic QR generation, automated &le; ₹1999 payment splitting, 2-minute instant checkout, and centralized admin supervision.</p>
+    </header>
+
+    <div class="portals-grid">
+      <!-- Merchant Portal Card -->
+      <div class="portal-card merchant-card">
+        <div class="card-icon">💼</div>
+        <div class="card-tag live">Paytm Live</div>
+        <h2>Merchant Portal</h2>
+        <p>Instant free registration with Paytm, manage up to 2 linked user terminals, generate dynamic UPI payment requests with split logic, and approve/deny payments in real time.</p>
+        <ul class="features-list">
+          <li>✓ 100% Free Instant Registration &amp; Activation</li>
+          <li>✓ Paytm LIVE (GPay, PhonePe Coming Soon)</li>
+          <li>✓ 2 Dedicated Linked User Pairing Slots</li>
+          <li>✓ Auto-split amounts &gt; ₹1999</li>
+          <li>✓ Real-time Approve &amp; Deny Controls</li>
+          <li>✓ Complete Analytics &amp; Revenue History</li>
+        </ul>
+        <a href="/merchant" class="portal-btn merchant-btn">Launch Merchant Portal &rarr;</a>
+      </div>
+
+      <!-- User Portal Card -->
+      <div class="portal-card user-card">
+        <div class="card-icon">📱</div>
+        <div class="card-tag blue">Light Blue UPI UI</div>
+        <h2>User Payment Terminal</h2>
+        <p>Ultra-clean light blue UPI terminal for customers. Pair using the merchant's unique code, view dynamic QR codes, and complete payments within a 2-minute timer.</p>
+        <ul class="features-list">
+          <li>✓ Plain Light Blue UPI Box Aesthetic</li>
+          <li>✓ One-click Pairing via Merchant Code</li>
+          <li>✓ Dynamic UPI QR Code Generation</li>
+          <li>✓ Auto-Split QR Viewer for &gt; ₹1999</li>
+          <li>✓ 2-Minute Live Countdown Timer</li>
+          <li>✓ Instant Real-time Approval Notification</li>
+        </ul>
+        <a href="/user" class="portal-btn user-btn">Launch User Terminal &rarr;</a>
+      </div>
+
+      <!-- Admin Portal Card -->
+      <div class="portal-card admin-card">
+        <div class="card-icon">🛡️</div>
+        <div class="card-tag admin">Master Control</div>
+        <h2>Admin Management</h2>
+        <p>Comprehensive administrative hub to monitor all merchants, approve or block merchant access, reset merchant credentials, and inspect global transaction flow in real time.</p>
+        <ul class="features-list">
+          <li>✓ Merchant Approvals & Blocking Controls</li>
+          <li>✓ Instant Merchant Password Resets</li>
+          <li>✓ Platform Volume & GMV Analytics</li>
+          <li>✓ Live Global Transaction Audit Feed</li>
+          <li>✓ Slot Connectivity Inspection</li>
+        </ul>
+        <a href="/admin" class="portal-btn admin-btn">Launch Admin Portal &rarr;</a>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <p>UPI Payment & Multi-Terminal Switch &bull; Running on Node.js &amp; WebSockets</p>
+      <p style="margin-top: 8px;"><a href="javascript:void(0)" onclick="openNoticeModal()" class="notice-footer-link">⚖️ Educational &amp; Academic Notice (NPCI / RBI Compliance)</a></p>
+    </footer>
+  </div>
+
+  <!-- ======================================================= -->
+  <!-- Educational & Academic Notice Gate Overlay              -->
+  <!-- ======================================================= -->
+  <div id="noticeGateOverlay" class="notice-overlay">
+    <div class="notice-card">
+      <div class="notice-badge">
+        <span>🎓</span>
+        <span>Educational &amp; Academic Demonstration Only</span>
+      </div>
+
+      <h2 class="notice-title">Educational &amp; Academic Notice</h2>
+
+      <div class="notice-body">
+        <p><strong>This project (SLIPTE-PAYMENT) is developed strictly as a VIBE project / proof-of-concept to demonstrate full-stack web development, real-time POS-user terminal pairing, state management, and dynamic QR generation.</strong></p>
+        <p><strong>It is not intended for commercial production use or live financial deployment due to regulatory and banking compliance guidelines (NPCI / RBI).</strong></p>
+      </div>
+
+      <div class="notice-points">
+        <div class="notice-point-item">
+          <span class="notice-point-icon">🔬</span>
+          <div><strong>Academic Demonstration:</strong> Engineered solely to evaluate bi-directional WebSocket client synchronization, compliant payload auto-splitting algorithms (&le; &#8377;1999), and multi-portal terminal architectures.</div>
+        </div>
+        <div class="notice-point-item">
+          <span class="notice-point-icon">🛡️</span>
+          <div><strong>Regulatory Disclaimer:</strong> Not affiliated with NPCI, RBI, or any authorized banking entity. No real currency or banking credentials are saved, transmitted, or settled.</div>
+        </div>
+        <div class="notice-point-item">
+          <span class="notice-point-icon">📋</span>
+          <div><strong>Evaluation Agreement:</strong> By proceeding, you acknowledge that you are reviewing this software for learning, code assessment, and technical exploration only.</div>
+        </div>
+      </div>
+
+      <label class="notice-ack-box">
+        <input type="checkbox" id="noticeAckCheck" checked>
+        <span>I have read and acknowledge the educational nature of this project.</span>
+      </label>
+
+      <button id="noticeEnterBtn" class="notice-btn-enter">
+        🚀 I Understand &amp; Acknowledge &mdash; Enter Platform &rarr;
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const noticeOverlay = document.getElementById('noticeGateOverlay');
+    const noticeAckCheck = document.getElementById('noticeAckCheck');
+    const noticeEnterBtn = document.getElementById('noticeEnterBtn');
+
+    // Check if previously acknowledged in this session
+    if (sessionStorage.getItem('slipte_notice_ack') === 'true') {
+      noticeOverlay.classList.add('hidden');
+    }
+
+    noticeAckCheck.addEventListener('change', () => {
+      noticeEnterBtn.disabled = !noticeAckCheck.checked;
+    });
+
+    noticeEnterBtn.addEventListener('click', () => {
+      sessionStorage.setItem('slipte_notice_ack', 'true');
+      noticeOverlay.classList.add('hidden');
+    });
+
+    function openNoticeModal() {
+      noticeOverlay.classList.remove('hidden');
+    }
+  </script>
+</body>
+</html>
+

@@ -10,7 +10,10 @@ let remainingSeconds = 120;
 // Audio Alerts
 function playSound(type) {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    if (ctx.state === 'suspended') return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -78,13 +81,18 @@ const resetTerminalBtn = document.getElementById('resetTerminalBtn');
 const retryTerminalBtn = document.getElementById('retryTerminalBtn');
 const expiredTerminalBtn = document.getElementById('expiredTerminalBtn');
 
+// Terminal 3 Blocked Elements
+const terminalBlockedState = document.getElementById('terminalBlockedState');
+const blockedMerchantCode = document.getElementById('blockedMerchantCode');
+const retryPairingBtn = document.getElementById('retryPairingBtn');
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
   setupEventHandlers();
 
-  // Check URL query parameters for ?code=XYZ
+  // Check URL query parameters for ?code=XYZ or localStorage
   const params = new URLSearchParams(window.location.search);
-  const codeParam = params.get('code');
+  const codeParam = params.get('code') || localStorage.getItem('slipte_last_code');
   if (codeParam) {
     inputPairingCode.value = codeParam.toUpperCase();
     connectTerminal(codeParam.toUpperCase());
@@ -97,6 +105,16 @@ function setupEventHandlers() {
     const code = inputPairingCode.value.trim().toUpperCase();
     if (code) connectTerminal(code);
   });
+
+  if (retryPairingBtn) {
+    retryPairingBtn.addEventListener('click', () => {
+      if (terminalBlockedState) terminalBlockedState.classList.add('hidden');
+      upiBox.classList.add('hidden');
+      pairingBox.classList.remove('hidden');
+      connectionStatusBadge.textContent = 'Offline';
+      connectionStatusBadge.className = 'status-badge offline';
+    });
+  }
 
   if (iHavePaidBtn) {
     iHavePaidBtn.addEventListener('click', () => {
@@ -139,18 +157,67 @@ function showState(stateName) {
   else if (stateName === 'expired') paymentExpiredState.classList.remove('hidden');
 }
 
-// Connect Terminal via Code
+let userSessionId = sessionStorage.getItem('slipte_user_sess');
+if (!userSessionId) {
+  userSessionId = 'sess_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now().toString(36);
+  sessionStorage.setItem('slipte_user_sess', userSessionId);
+}
+
+let pollInterval = null;
+let isWsConnected = false;
+let lastProcessedTxnState = null;
+
+function showTerminal3Blocked(code, customMessage) {
+  if (pollInterval) clearInterval(pollInterval);
+  if (ws) {
+    try { ws.close(); } catch (e) {}
+  }
+  playSound('alert');
+  pairingBox.classList.add('hidden');
+  upiBox.classList.add('hidden');
+  if (terminalBlockedState) {
+    terminalBlockedState.classList.remove('hidden');
+    if (blockedMerchantCode) blockedMerchantCode.textContent = code || '------';
+  }
+  connectionStatusBadge.textContent = '⚠️ Terminal 3 Blocked';
+  connectionStatusBadge.className = 'status-badge blocked';
+}
+
+// // Connect Terminal via Code
 async function connectTerminal(code) {
   pairingAlert.classList.add('hidden');
 
   try {
-    const res = await fetch(`/api/user/validate-code/${encodeURIComponent(code)}`);
-    const data = await res.json();
+    const res = await fetch(`/api/user/terminal/${encodeURIComponent(code)}?sessionId=${encodeURIComponent(userSessionId)}`);
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      throw new Error('Server starting up, please click Connect Terminal again in a moment.');
+    }
+
     if (!res.ok || !data.valid) {
+      if (data && (data.terminal3Blocked || data.slotNumber === 3 || (data.message && data.message.includes('Terminal 3')))) {
+        showTerminal3Blocked(code, data.message || data.error);
+        return;
+      }
       throw new Error(data.error || 'Invalid pairing code');
     }
 
     currentCode = code;
+    try { localStorage.setItem('slipte_last_code', code); } catch (e) {}
+
+    // Immediately transition into the paired terminal screen!
+    onTerminalConnected({
+      code: code,
+      merchantPhone: data.merchant.phone,
+      merchantUpi: data.merchant.upi_id,
+      slot: data.slot
+    });
+
+    // Start continuous polling heartbeat & state synchronization (rock-solid on Vercel)
+    startHttpPolling(code, data.merchant);
     initWebSocket(code, data.merchant);
   } catch (err) {
     pairingAlert.textContent = err.message;
@@ -159,70 +226,174 @@ async function connectTerminal(code) {
   }
 }
 
-function initWebSocket(code, merchantInfo) {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}`;
-  ws = new WebSocket(wsUrl);
+// HTTP Polling fallback & Slot Heartbeat (Works 100% on Serverless/Vercel & Local)
+function startHttpPolling(code, merchantInfo) {
+  if (pollInterval) clearInterval(pollInterval);
 
-  ws.onopen = () => {
-    ws.send(JSON.stringify({
-      type: 'user_init',
-      userCode: code
-    }));
-  };
-
-  ws.onmessage = (event) => {
+  async function poll() {
     try {
-      const msg = JSON.parse(event.data);
+      const res = await fetch(`/api/user/terminal/${encodeURIComponent(code)}?sessionId=${encodeURIComponent(userSessionId)}`);
+      if (!res.ok) {
+        if (res.status === 403) {
+          const d = await res.json().catch(() => ({}));
+          if (d.terminal3Blocked || (d.message && d.message.includes('Terminal 3'))) {
+            showTerminal3Blocked(code, d.message);
+            return;
+          }
+        }
+        return;
+      }
+      const data = await res.json();
 
-      if (msg.type === 'user_ready') {
-        onTerminalConnected(msg);
-      } else if (msg.type === 'user_error') {
-        alert(msg.message);
-        connectionStatusBadge.textContent = 'Disconnected';
-        connectionStatusBadge.className = 'status-badge offline';
-      } else if (msg.type === 'active_payment' || msg.type === 'payment_incoming') {
-        playSound('alert');
-        onPaymentReceived(msg.transaction, msg.remainingSeconds || 120);
-      } else if (msg.type === 'chunk_approved_next') {
-        onChunkApprovedNext(msg);
-      } else if (msg.type === 'payment_decision') {
-        onPaymentDecision(msg);
-      } else if (msg.type === 'payment_expired') {
-        onPaymentExpired();
-      } else if (msg.type === 'merchant_blocked') {
-        alert('⚠️ ' + msg.message);
+      if (data.terminal3Blocked || (data.blocked && data.slotNumber === 3)) {
+        showTerminal3Blocked(code, data.message);
+        return;
+      }
+
+      if (data.blocked) {
+        alert('⚠️ ' + data.message);
         location.reload();
+        return;
+      }
+
+      if (data.slot) {
+        connectionStatusBadge.textContent = `Terminal Live (Slot ${data.slot})`;
+        connectionStatusBadge.className = 'status-badge online';
+      }
+
+      if (data.activePayment) {
+        const ap = data.activePayment;
+        const txn = ap.transaction || ap;
+        const stateKey = `${ap.id}_part_${ap.currentPart}_${ap.status}`;
+        const isUIWaiting = paymentActiveState.classList.contains('hidden') && paymentSubmittedState.classList.contains('hidden');
+
+        if (lastProcessedTxnState !== stateKey || isUIWaiting) {
+          lastProcessedTxnState = stateKey;
+          currentTxn = txn;
+
+          if (ap.status === 'submitted') {
+            showState('submitted');
+          } else if (ap.status === 'pending') {
+            if (ap.currentPart > 1) {
+              playSound('chime');
+            } else {
+              playSound('alert');
+            }
+            onPaymentReceived(txn, ap.remainingSeconds || 120, ap.qrDataUrl);
+          }
+        } else if (ap.status === 'pending' && ap.qrDataUrl && (!qrImage.src || qrImage.src.endsWith('/'))) {
+          qrImage.src = ap.qrDataUrl;
+          qrLoading.classList.add('hidden');
+        }
+      } else {
+        // No active pending payment
+        if (data.lastTransaction && currentTxn && data.lastTransaction.id === currentTxn.id) {
+          const stateKey = `${data.lastTransaction.id}_decision_${data.lastTransaction.status}`;
+          if (lastProcessedTxnState !== stateKey) {
+            lastProcessedTxnState = stateKey;
+            if (data.lastTransaction.status === 'approved') {
+              onPaymentDecision({ status: 'approved', transaction: data.lastTransaction });
+            } else if (data.lastTransaction.status === 'denied') {
+              onPaymentDecision({ status: 'denied', transaction: data.lastTransaction });
+            }
+          }
+        } else if (!currentTxn) {
+          showState('waiting');
+          lastProcessedTxnState = null;
+        }
       }
     } catch (e) {
-      console.error('WS parse error:', e);
+      console.warn('HTTP Polling error:', e);
     }
-  };
+  }
 
-  ws.onclose = () => {
-    connectionStatusBadge.textContent = 'Offline';
-    connectionStatusBadge.className = 'status-badge offline';
-    if (currentCode) {
-      setTimeout(() => initWebSocket(currentCode, merchantInfo), 3000);
-    }
-  };
+  poll();
+  pollInterval = setInterval(poll, 1200);
+}
+
+let userWsRetries = 0;
+function initWebSocket(code, merchantInfo) {
+  if (userWsRetries > 3) return; // Prevent console spam on Vercel serverless
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${window.location.host}`;
+
+  try {
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      userWsRetries = 0;
+      isWsConnected = true;
+      ws.send(JSON.stringify({
+        type: 'user_init',
+        userCode: code
+      }));
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+
+        if (msg.type === 'user_ready') {
+          onTerminalConnected(msg);
+        } else if (msg.type === 'user_error') {
+          if (msg.terminal3Blocked || (msg.message && msg.message.includes('Terminal 3'))) {
+            showTerminal3Blocked(code, msg.message);
+          } else {
+            alert(msg.message);
+            connectionStatusBadge.textContent = 'Disconnected';
+            connectionStatusBadge.className = 'status-badge offline';
+          }
+        } else if (msg.type === 'active_payment' || msg.type === 'payment_incoming') {
+          playSound('alert');
+          onPaymentReceived(msg.transaction, msg.remainingSeconds || 120);
+        } else if (msg.type === 'chunk_approved_next') {
+          onChunkApprovedNext(msg);
+        } else if (msg.type === 'payment_decision') {
+          onPaymentDecision(msg);
+        } else if (msg.type === 'payment_expired') {
+          onPaymentExpired();
+        } else if (msg.type === 'merchant_blocked') {
+          alert('⚠️ ' + msg.message);
+          location.reload();
+        }
+      } catch (e) {
+        console.error('WS parse error:', e);
+      }
+    };
+
+    ws.onclose = () => {
+      isWsConnected = false;
+      userWsRetries++;
+      if (currentCode && userWsRetries <= 3) {
+        setTimeout(() => initWebSocket(currentCode, merchantInfo), 6000);
+      }
+    };
+
+    ws.onerror = () => {
+      isWsConnected = false;
+      userWsRetries++;
+    };
+  } catch (err) {
+    isWsConnected = false;
+    userWsRetries++;
+  }
 }
 
 function onTerminalConnected(msg) {
-  connectionStatusBadge.textContent = 'Terminal Live';
+  const slotText = msg.slot ? ` (Slot ${msg.slot})` : '';
+  connectionStatusBadge.textContent = `Terminal Live${slotText}`;
   connectionStatusBadge.className = 'status-badge online';
 
   pairingBox.classList.add('hidden');
   upiBox.classList.remove('hidden');
 
-  merchantInfoText.textContent = `Merchant Connected (${msg.code || 'MC-99'})`;
-  waitingMerchantUpi.textContent = msg.merchantUpi;
-
+  merchantInfoText.textContent = `Merchant Connected (${msg.code || 'MC-99'})${slotText}`;
+  if (msg.merchantUpi) waitingMerchantUpi.textContent = msg.merchantUpi;
   showState('waiting');
 }
 
 // Payment Flow with Sequential Chunk Rendering
-function onPaymentReceived(txn, secs = 120) {
+function onPaymentReceived(txn, secs = 120, preloadedQrDataUrl = null) {
   currentTxn = txn;
   totalTimerSeconds = 120;
   remainingSeconds = secs;
@@ -246,18 +417,23 @@ function onPaymentReceived(txn, secs = 120) {
   currentPartAmount.textContent = `Pay ${formatCurrency(currentChunk.amount)}`;
   if (upiIntentBtn) upiIntentBtn.href = currentChunk.upi_uri;
 
-  qrLoading.classList.remove('hidden');
-  fetch(`/api/qr?text=${encodeURIComponent(currentChunk.upi_uri)}`)
-    .then(r => r.json())
-    .then(d => {
-      if (d.dataUrl) {
-        qrImage.src = d.dataUrl;
-        qrLoading.classList.add('hidden');
-      }
-    })
-    .catch(e => {
-      qrLoading.textContent = 'Failed to generate QR';
-    });
+  if (preloadedQrDataUrl) {
+    qrImage.src = preloadedQrDataUrl;
+    qrLoading.classList.add('hidden');
+  } else {
+    qrLoading.classList.remove('hidden');
+    fetch(`/api/qr?text=${encodeURIComponent(currentChunk.upi_uri)}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.dataUrl) {
+          qrImage.src = d.dataUrl;
+          qrLoading.classList.add('hidden');
+        }
+      })
+      .catch(e => {
+        qrLoading.textContent = 'Failed to generate QR';
+      });
+  }
 
   // Start 2-Minute Timer
   startTimer();

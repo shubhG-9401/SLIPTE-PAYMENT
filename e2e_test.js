@@ -94,10 +94,10 @@ async function runTests() {
     console.log('\n2. Testing "Try Demo" Sandbox Mode Endpoint:');
     const demoRes = await request('GET', '/api/merchant/demo');
     console.log('   GET /api/merchant/demo status:', demoRes.status, 'Unique Code:', demoRes.data.merchant.merchant_code);
-    if (!demoRes.data.merchant || demoRes.data.merchant.merchant_code !== 'MC-99') {
-      throw new Error('Demo merchant must have code MC-99');
+    if (!demoRes.data.merchant || (demoRes.data.merchant.merchant_code !== '999999' && demoRes.data.merchant.merchant_code !== 'MC-99')) {
+      throw new Error('Demo merchant must have code 999999 (or legacy MC-99)');
     }
-    console.log('   ✓ Verified: Sandbox Mode unlocked with code MC-99 without registration');
+    console.log('   ✓ Verified: Sandbox Mode unlocked with 6-digit code ' + demoRes.data.merchant.merchant_code);
 
     // 3. Admin Authentication
     console.log('\n3. Testing Admin Login:');
@@ -121,7 +121,7 @@ async function runTests() {
     console.log('   Registration status:', regRes.status, regRes.data.merchant ? '✓ SUCCESS' : '✗ FAILED');
     const merchant = regRes.data.merchant;
     console.log('   Assigned Unique Code:', merchant.merchant_code);
-    if (!merchant.merchant_code.startsWith('MC-')) throw new Error('Expected MC-XX code');
+    if (!/^\d{6}$/.test(merchant.merchant_code) && !merchant.merchant_code.startsWith('MC-')) throw new Error('Expected 6-digit code');
 
     // 5. Restriction on Non-Live Gateways (GPay / PhonePe)
     console.log('\n5. Testing Provider Guard (GPay Coming Soon):');

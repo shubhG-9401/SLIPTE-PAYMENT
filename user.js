@@ -81,6 +81,11 @@ const resetTerminalBtn = document.getElementById('resetTerminalBtn');
 const retryTerminalBtn = document.getElementById('retryTerminalBtn');
 const expiredTerminalBtn = document.getElementById('expiredTerminalBtn');
 
+// Terminal 3 Blocked Elements
+const terminalBlockedState = document.getElementById('terminalBlockedState');
+const blockedMerchantCode = document.getElementById('blockedMerchantCode');
+const retryPairingBtn = document.getElementById('retryPairingBtn');
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
   setupEventHandlers();
@@ -100,6 +105,16 @@ function setupEventHandlers() {
     const code = inputPairingCode.value.trim().toUpperCase();
     if (code) connectTerminal(code);
   });
+
+  if (retryPairingBtn) {
+    retryPairingBtn.addEventListener('click', () => {
+      if (terminalBlockedState) terminalBlockedState.classList.add('hidden');
+      upiBox.classList.add('hidden');
+      pairingBox.classList.remove('hidden');
+      connectionStatusBadge.textContent = 'Offline';
+      connectionStatusBadge.className = 'status-badge offline';
+    });
+  }
 
   if (iHavePaidBtn) {
     iHavePaidBtn.addEventListener('click', () => {
@@ -152,6 +167,22 @@ let pollInterval = null;
 let isWsConnected = false;
 let lastProcessedTxnState = null;
 
+function showTerminal3Blocked(code, customMessage) {
+  if (pollInterval) clearInterval(pollInterval);
+  if (ws) {
+    try { ws.close(); } catch (e) {}
+  }
+  playSound('alert');
+  pairingBox.classList.add('hidden');
+  upiBox.classList.add('hidden');
+  if (terminalBlockedState) {
+    terminalBlockedState.classList.remove('hidden');
+    if (blockedMerchantCode) blockedMerchantCode.textContent = code || '------';
+  }
+  connectionStatusBadge.textContent = '⚠️ Terminal 3 Blocked';
+  connectionStatusBadge.className = 'status-badge blocked';
+}
+
 // // Connect Terminal via Code
 async function connectTerminal(code) {
   pairingAlert.classList.add('hidden');
@@ -167,6 +198,10 @@ async function connectTerminal(code) {
     }
 
     if (!res.ok || !data.valid) {
+      if (data && (data.terminal3Blocked || data.slotNumber === 3 || (data.message && data.message.includes('Terminal 3')))) {
+        showTerminal3Blocked(code, data.message || data.error);
+        return;
+      }
       throw new Error(data.error || 'Invalid pairing code');
     }
 
@@ -198,8 +233,22 @@ function startHttpPolling(code, merchantInfo) {
   async function poll() {
     try {
       const res = await fetch(`/api/user/terminal/${encodeURIComponent(code)}?sessionId=${encodeURIComponent(userSessionId)}`);
-      if (!res.ok) return;
+      if (!res.ok) {
+        if (res.status === 403) {
+          const d = await res.json().catch(() => ({}));
+          if (d.terminal3Blocked || (d.message && d.message.includes('Terminal 3'))) {
+            showTerminal3Blocked(code, d.message);
+            return;
+          }
+        }
+        return;
+      }
       const data = await res.json();
+
+      if (data.terminal3Blocked || (data.blocked && data.slotNumber === 3)) {
+        showTerminal3Blocked(code, data.message);
+        return;
+      }
 
       if (data.blocked) {
         alert('⚠️ ' + data.message);
@@ -287,9 +336,13 @@ function initWebSocket(code, merchantInfo) {
         if (msg.type === 'user_ready') {
           onTerminalConnected(msg);
         } else if (msg.type === 'user_error') {
-          alert(msg.message);
-          connectionStatusBadge.textContent = 'Disconnected';
-          connectionStatusBadge.className = 'status-badge offline';
+          if (msg.terminal3Blocked || (msg.message && msg.message.includes('Terminal 3'))) {
+            showTerminal3Blocked(code, msg.message);
+          } else {
+            alert(msg.message);
+            connectionStatusBadge.textContent = 'Disconnected';
+            connectionStatusBadge.className = 'status-badge offline';
+          }
         } else if (msg.type === 'active_payment' || msg.type === 'payment_incoming') {
           playSound('alert');
           onPaymentReceived(msg.transaction, msg.remainingSeconds || 120);

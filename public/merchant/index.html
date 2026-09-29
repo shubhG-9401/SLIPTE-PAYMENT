@@ -156,12 +156,12 @@
         <div class="terminal-pairing-hero">
           <div class="code-spotlight-box">
             <div class="spotlight-left">
-              <span class="spotlight-label">ASSIGNED UNIQUE CODE</span>
+              <span class="spotlight-label">ASSIGNED UNIQUE CODE (6 DIGITS)</span>
               <div class="spotlight-code-row">
-                <span class="spotlight-code" id="dashMerchantCode">MC-99</span>
+                <span class="spotlight-code" id="dashMerchantCode">999999</span>
                 <button id="copyMerchantCodeBtn" class="btn btn-sm btn-secondary" title="Copy Code">📋 Copy Code</button>
               </div>
-              <span class="spotlight-hint">Customers enter this code in their light-blue User Portal to pair.</span>
+              <span class="spotlight-hint">Customers enter this 6-digit unique code in their User Portal to pair.</span>
             </div>
             <div class="spotlight-right">
               <div class="slot-indicators">
@@ -173,11 +173,25 @@
                   <span class="slot-dot"></span>
                   <span class="slot-name">User Terminal 2: <strong id="slotText2">Available</strong></span>
                 </div>
+                <div class="slot-pill slot-blocked" id="slotIndicator3" title="Terminal 3 access is blocked">
+                  <span class="slot-dot blocked-dot">⚠️</span>
+                  <span class="slot-name">User Terminal 3: <strong class="badge-blocked">⚠️ Blocked (Max 2 Allowed)</strong></span>
+                </div>
               </div>
               <div class="terminal-quick-links">
                 <a href="/user.html" target="_blank" class="btn btn-sm btn-outline open-terminal-btn" id="openTerminalLink">🔗 Open Customer Terminal &rarr;</a>
+                <button type="button" class="btn btn-sm btn-danger-soft" id="testTerminal3Btn" title="Test Terminal 3 Access">🚫 Terminal 3 (Blocked)</button>
               </div>
             </div>
+          </div>
+          <!-- Terminal 3 Warning Sign Banner -->
+          <div id="terminal3WarningBanner" class="terminal-warning-alert hidden">
+            <span class="alert-icon">⚠️</span>
+            <div class="warning-text-group">
+              <strong>ACCESS BLOCKED — Terminal 3 Restricted:</strong>
+              <span>Your merchant account permits a maximum of 2 active customer terminals (Terminal 1 &amp; Terminal 2). Terminal 3 connection attempts are blocked.</span>
+            </div>
+            <button type="button" class="close-alert-btn" id="closeWarningBtn" title="Dismiss">&times;</button>
           </div>
         </div>
       </div>

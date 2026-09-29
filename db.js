@@ -62,8 +62,8 @@ const initialData = {
       fee_paid: true,
       razorpay_payment_id: 'pay_demo_init',
       status: 'active',
-      merchant_code: 'MC-99',
-      user_codes: ['MC-99'],
+      merchant_code: '999999',
+      user_codes: ['999999', 'MC-99'],
       is_demo: true,
       created_at: new Date().toISOString()
     }
@@ -117,7 +117,8 @@ function readDb() {
 
       // Ensure demo merchant always exists
       let modified = false;
-      if (!parsed.merchants.some(m => m.merchant_code === 'MC-99' || m.id === 'm_demo')) {
+      const demo = parsed.merchants.find(m => m.id === 'm_demo' || m.merchant_code === '999999' || m.merchant_code === 'MC-99');
+      if (!demo) {
         parsed.merchants.unshift({
           id: 'm_demo',
           phone: '9999999999',
@@ -127,11 +128,16 @@ function readDb() {
           fee_paid: true,
           razorpay_payment_id: 'pay_demo_init',
           status: 'active',
-          merchant_code: 'MC-99',
-          user_codes: ['MC-99'],
+          merchant_code: '999999',
+          user_codes: ['999999', 'MC-99'],
           is_demo: true,
           created_at: new Date().toISOString()
         });
+        modified = true;
+      } else if (demo.merchant_code !== '999999') {
+        demo.merchant_code = '999999';
+        if (!demo.user_codes) demo.user_codes = ['999999'];
+        else if (!demo.user_codes.includes('999999')) demo.user_codes.unshift('999999');
         modified = true;
       }
       if (modified) {
@@ -173,18 +179,25 @@ function writeDb(data) {
 }
 
 
-// Helper: Generate unique merchant code formatted like MC-99, MC-101, etc.
+// Helper: Generate unique merchant code that is exactly 6 digits long (100000 - 999999)
 function generateMerchantCode(existingMerchants = []) {
-  let maxNum = 98;
+  const existingCodes = new Set();
   for (const m of existingMerchants) {
-    if (m.merchant_code && m.merchant_code.startsWith('MC-')) {
-      const num = parseInt(m.merchant_code.replace('MC-', ''), 10);
-      if (!isNaN(num) && num > maxNum) {
-        maxNum = num;
-      }
+    if (m.merchant_code) existingCodes.add(m.merchant_code.toString().trim().toUpperCase());
+    if (Array.isArray(m.user_codes)) {
+      m.user_codes.forEach(c => existingCodes.add(c.toString().trim().toUpperCase()));
     }
   }
-  return `MC-${maxNum + 1}`;
+
+  let code;
+  let attempts = 0;
+  do {
+    // Generate a random 6-digit number string e.g. "584910"
+    code = Math.floor(100000 + Math.random() * 900000).toString();
+    attempts++;
+  } while (existingCodes.has(code) && attempts < 5000);
+
+  return code;
 }
 
 function generateCode(prefix = 'UPI') {
@@ -266,7 +279,7 @@ const MerchantStore = {
 
   getDemoMerchant() {
     const db = readDb();
-    let demo = db.merchants.find(m => m.merchant_code === 'MC-99' || m.id === 'm_demo');
+    let demo = db.merchants.find(m => m.merchant_code === '999999' || m.id === 'm_demo' || m.merchant_code === 'MC-99');
     if (!demo) {
       demo = {
         id: 'm_demo',
@@ -277,12 +290,17 @@ const MerchantStore = {
         fee_paid: true,
         razorpay_payment_id: 'pay_demo_init',
         status: 'active',
-        merchant_code: 'MC-99',
-        user_codes: ['MC-99'],
+        merchant_code: '999999',
+        user_codes: ['999999', 'MC-99'],
         is_demo: true,
         created_at: new Date().toISOString()
       };
       db.merchants.unshift(demo);
+      writeDb(db);
+    } else if (demo.merchant_code !== '999999') {
+      demo.merchant_code = '999999';
+      if (!demo.user_codes) demo.user_codes = ['999999'];
+      else if (!demo.user_codes.includes('999999')) demo.user_codes.unshift('999999');
       writeDb(db);
     }
     return sanitizeMerchant(demo);
@@ -714,7 +732,7 @@ const TransactionStore = {
   }
 };
 
-// Persistent Terminal Store for Slot Linking (Max 2 Slots per merchant code)
+// Persistent Terminal Store for Slot Linking (Max 2 Slots per merchant code, Terminal 3 is blocked)
 const TerminalStore = {
   registerHeartbeat(code, sessionId) {
     if (!code || !sessionId) return null;
@@ -728,7 +746,24 @@ const TerminalStore = {
 
     let terminal = db.terminals.find(t => t.sessionId === sessionId && t.code === cleanCode);
     if (!terminal) {
-      const occupied = new Set(db.terminals.filter(t => t.code === cleanCode).map(t => t.slotNumber));
+      const activeForCode = db.terminals.filter(t => t.code === cleanCode);
+      const occupied = new Set(activeForCode.map(t => t.slotNumber));
+
+      // IF TERMINAL 3 TRIES TO CONNECT:
+      // When both Slot 1 and Slot 2 are occupied (or active count >= 2), block Terminal 3!
+      if (occupied.has(1) && occupied.has(2)) {
+        return {
+          blocked: true,
+          terminal3Blocked: true,
+          slotLimitExceeded: true,
+          slotNumber: 3,
+          code: cleanCode,
+          sessionId,
+          error: 'Access Blocked: Maximum 2 terminals (Terminal 1 & Terminal 2) allowed. Terminal 3 access is blocked.',
+          message: '⚠️ ACCESS BLOCKED: Terminal 3 is restricted. Maximum 2 live terminals are allowed per merchant account.'
+        };
+      }
+
       const assignedSlot = occupied.has(1) ? 2 : 1;
       terminal = {
         sessionId,
@@ -755,8 +790,8 @@ const TerminalStore = {
     const active = db.terminals.filter(t => t.code === cleanCode && (now - (t.lastSeen || 0)) < 15000);
 
     const hasSlot1 = active.some(t => t.slotNumber === 1);
-    const hasSlot2 = active.some(t => t.slotNumber === 2 || active.length >= 2);
-    const connectedCount = Math.min(2, active.length);
+    const hasSlot2 = active.some(t => t.slotNumber === 2);
+    const connectedCount = (hasSlot1 ? 1 : 0) + (hasSlot2 ? 1 : 0);
 
     return {
       code: cleanCode,
@@ -764,9 +799,11 @@ const TerminalStore = {
       maxSlots: 2,
       slotText: `${connectedCount}/2`,
       slots: [
-        { code: cleanCode, slotNumber: 1, connected: hasSlot1, activeUsers: connectedCount },
-        { code: cleanCode, slotNumber: 2, connected: hasSlot2, activeUsers: connectedCount }
-      ]
+        { code: cleanCode, slotNumber: 1, name: 'User Terminal 1', connected: hasSlot1, activeUsers: connectedCount, status: hasSlot1 ? 'connected' : 'available' },
+        { code: cleanCode, slotNumber: 2, name: 'User Terminal 2', connected: hasSlot2, activeUsers: connectedCount, status: hasSlot2 ? 'connected' : 'available' },
+        { code: cleanCode, slotNumber: 3, name: 'User Terminal 3', connected: false, blocked: true, status: 'blocked', message: '⚠️ Access Blocked: Terminal 3 Restricted (Max 2 Terminals)' }
+      ],
+      terminal3Blocked: true
     };
   },
 

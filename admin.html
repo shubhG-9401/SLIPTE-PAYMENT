@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Portal | UPI Gateway Central Command</title>
+  <link rel="stylesheet" href="/admin/admin.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Top Navbar -->
+  <header class="admin-header">
+    <div class="header-container">
+      <div class="admin-brand">
+        <span class="shield-icon">🛡️</span>
+        <div class="brand-text">
+          <span class="brand-title">Admin Console</span>
+          <span class="brand-sub">UPI Merchant Network Switch</span>
+        </div>
+      </div>
+      <div id="adminNavUser" class="admin-user-group hidden">
+        <span class="admin-name">Logged in: <strong id="adminLoggedName">admin</strong></span>
+        <button id="adminSettingsBtn" class="btn btn-outline btn-sm">⚙️ Change Username / Password</button>
+        <button id="adminLogoutBtn" class="btn btn-outline btn-sm">Sign Out</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="admin-main">
+    <!-- ADMIN LOGIN CARD -->
+    <div id="adminLoginSection" class="admin-login-wrapper">
+      <div class="admin-login-card">
+        <div class="login-header">
+          <div class="login-icon">🔐</div>
+          <h2>Administrator Sign In</h2>
+          <p>Superuser access for merchant controls & platform oversight</p>
+        </div>
+
+        <form id="adminLoginForm">
+          <div class="form-group">
+            <label for="adminUsername">Username</label>
+            <input type="text" id="adminUsername" placeholder="Enter admin username" value="admin" required>
+          </div>
+
+          <div class="form-group">
+            <label for="adminPassword">Password</label>
+            <input type="password" id="adminPassword" placeholder="Enter admin password" value="admin123" required>
+            <small class="hint">Default: <code>admin</code> / <code>admin123</code></small>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block">Authenticate &rarr;</button>
+          <div id="adminLoginAlert" class="alert hidden"></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ADMIN DASHBOARD -->
+    <div id="adminDashboardSection" class="admin-dashboard-wrapper hidden">
+      <!-- STATS KPI ROW -->
+      <div class="stats-kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-icon">💼</div>
+          <div class="kpi-content">
+            <span class="kpi-label">Total Merchants</span>
+            <h3 id="kpiTotalMerchants">0</h3>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon green">✅</div>
+          <div class="kpi-content">
+            <span class="kpi-label">Active Merchants</span>
+            <h3 id="kpiActiveMerchants">0</h3>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon red">🚫</div>
+          <div class="kpi-content">
+            <span class="kpi-label">Blocked Merchants</span>
+            <h3 id="kpiBlockedMerchants">0</h3>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon blue">💰</div>
+          <div class="kpi-content">
+            <span class="kpi-label">Total Platform Volume</span>
+            <h3 id="kpiTotalGmv">₹0.00</h3>
+          </div>
+        </div>
+      </div>
+
+      <!-- MERCHANT MANAGEMENT TABLE -->
+      <div class="admin-card">
+        <div class="card-header-bar">
+          <div>
+            <h3>Merchant Management</h3>
+            <p class="subtitle">Approve, block, or reset credentials for any registered merchant.</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button id="clearFakeDataBtn" class="btn btn-danger-outline btn-sm">🧹 Clear Fake Data</button>
+            <button id="refreshMerchantsBtn" class="btn btn-outline btn-sm">↻ Refresh</button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Merchant Phone</th>
+                <th>Registered UPI ID</th>
+                <th>Gateway Type</th>
+                <th>Assigned Unique Code</th>
+                <th>Connected Users</th>
+                <th>Total Volume</th>
+                <th>Account Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="merchantsTableBody">
+              <tr><td colspan="8" class="text-center">Loading merchants...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- GLOBAL TRANSACTIONS AUDIT TABLE -->
+      <div class="admin-card">
+        <div class="card-header-bar">
+          <div>
+            <h3>Global Transaction Log</h3>
+            <p class="subtitle">Live audit stream of all transactions across all merchants.</p>
+          </div>
+          <button id="refreshTxnsBtn" class="btn btn-outline btn-sm">↻ Refresh</button>
+        </div>
+
+        <div class="table-responsive">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>TXN ID</th>
+                <th>Time</th>
+                <th>Merchant</th>
+                <th>Merchant UPI</th>
+                <th>Terminal Slot</th>
+                <th>Total Amount</th>
+                <th>Splits</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="adminTxnsTableBody">
+              <tr><td colspan="8" class="text-center">Loading transactions...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ADMIN CREDENTIALS & PROFILE SECTION (INLINE) -->
+      <div class="admin-card" id="adminCredentialsInlineCard" style="margin-top: 24px;">
+        <div class="card-header-bar">
+          <div>
+            <h3>Admin Security &amp; Credentials</h3>
+            <p class="subtitle">Change your administrator username and login password directly from this panel.</p>
+          </div>
+        </div>
+
+        <div style="padding: 20px;">
+          <form id="adminSettingsInlineForm" style="max-width: 520px;">
+            <div class="form-group">
+              <label for="adminInlineCurrentUsername">Current Username</label>
+              <input type="text" id="adminInlineCurrentUsername" disabled class="input-disabled">
+            </div>
+
+            <div class="form-group">
+              <label for="adminInlineNewUsername">New Username</label>
+              <input type="text" id="adminInlineNewUsername" placeholder="Enter new username (e.g. admin or myname)">
+            </div>
+
+            <div class="form-group">
+              <label for="adminInlineNewPassword">New Password</label>
+              <input type="password" id="adminInlineNewPassword" placeholder="Enter new password (min 4 chars)" minlength="4">
+            </div>
+
+            <div class="form-group">
+              <label for="adminInlineConfirmPassword">Confirm New Password</label>
+              <input type="password" id="adminInlineConfirmPassword" placeholder="Re-enter new password">
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="margin-top: 6px;">Update Admin Credentials</button>
+            <div id="adminInlineAlert" class="alert hidden"></div>
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- PASSWORD RESET MODAL -->
+  <div id="passwordModal" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>Reset Merchant Password</h3>
+        <button id="closeModalBtn" class="close-btn">&times;</button>
+      </div>
+      <form id="resetPasswordForm">
+        <input type="hidden" id="resetMerchantId">
+        <div class="modal-body">
+          <p>Resetting password for Merchant: <strong id="resetMerchantPhone">9876543210</strong></p>
+          <div class="form-group" style="margin-top: 14px;">
+            <label for="newPassword">New Password</label>
+            <input type="password" id="newPassword" placeholder="Enter new password (min 4 chars)" minlength="4" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="cancelResetBtn" class="btn btn-outline">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save New Password</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ADMIN SETTINGS MODAL: CHANGE USERNAME & PASSWORD -->
+  <div id="adminSettingsModal" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>Admin Profile: Change Username &amp; Password</h3>
+        <button id="closeAdminSettingsBtn" class="close-btn">&times;</button>
+      </div>
+      <form id="adminSettingsForm">
+        <div class="modal-body">
+          <p class="modal-subtext">Update your administrator username and secure login password.</p>
+
+          <div class="form-group" style="margin-top: 14px;">
+            <label for="adminCurrentUsername">Current Username</label>
+            <input type="text" id="adminCurrentUsername" disabled class="input-disabled">
+          </div>
+
+          <div class="form-group">
+            <label for="adminNewUsername">New Username</label>
+            <input type="text" id="adminNewUsername" placeholder="Enter new username (or keep blank)">
+          </div>
+
+          <div class="form-group">
+            <label for="adminCurrentPassword">Current Password <small style="color: #64748b;">(Optional)</small></label>
+            <input type="password" id="adminCurrentPassword" placeholder="Current password (leave blank if already signed in)">
+          </div>
+
+          <div class="form-group">
+            <label for="adminNewPassword">New Password</label>
+            <input type="password" id="adminNewPassword" placeholder="Enter new password (min 4 chars)" minlength="4">
+          </div>
+
+          <div class="form-group">
+            <label for="adminConfirmPassword">Confirm New Password</label>
+            <input type="password" id="adminConfirmPassword" placeholder="Repeat new password">
+          </div>
+
+          <div id="adminSettingsAlert" class="alert hidden"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="cancelAdminSettingsBtn" class="btn btn-outline">Cancel</button>
+          <button type="submit" id="saveAdminSettingsBtn" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/admin/admin.js"></script>
+</body>
+</html>

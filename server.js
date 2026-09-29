@@ -66,6 +66,46 @@ app.get(['/index.css', '/style.css'], (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.css'));
 });
 
+function resolveHtml(...candidates) {
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return candidates[0];
+}
+
+// Explicit routes for HTML pages (prioritize root files)
+app.get(['/merchant', '/merchant/', '/merchant.html', '/merchant/index.html'], (req, res) => {
+  res.sendFile(resolveHtml(
+    path.join(__dirname, 'merchant.html'),
+    path.join(__dirname, 'public', 'merchant.html'),
+    path.join(__dirname, 'public', 'merchant', 'index.html')
+  ));
+});
+
+app.get(['/user', '/user/', '/user.html', '/user/index.html'], (req, res) => {
+  res.sendFile(resolveHtml(
+    path.join(__dirname, 'user.html'),
+    path.join(__dirname, 'public', 'user.html'),
+    path.join(__dirname, 'public', 'user', 'index.html')
+  ));
+});
+
+app.get(['/admin', '/admin/', '/admin.html', '/admin/index.html'], (req, res) => {
+  res.sendFile(resolveHtml(
+    path.join(__dirname, 'admin.html'),
+    path.join(__dirname, 'public', 'admin.html'),
+    path.join(__dirname, 'public', 'admin', 'index.html')
+  ));
+});
+
+// Root Landing Page
+app.get(['/', '/index.html'], (req, res) => {
+  res.sendFile(resolveHtml(
+    path.join(__dirname, 'index.html'),
+    path.join(__dirname, 'public', 'index.html')
+  ));
+});
+
 // Serve static assets
 app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
 app.use('/merchant', express.static(path.join(__dirname, 'public', 'merchant')));
@@ -124,8 +164,8 @@ function cleanStalePollers() {
 }
 
 function getSlotStatus(merchant) {
-  if (!merchant) return { code: 'MC-99', connectedCount: 0, maxSlots: 2, slotText: '0/2', slots: [] };
-  const code = (merchant.merchant_code || (merchant.user_codes && merchant.user_codes[0]) || 'MC-99').toUpperCase();
+  if (!merchant) return { code: '999999', connectedCount: 0, maxSlots: 2, slotText: '0/2', slots: [] };
+  const code = (merchant.merchant_code || (merchant.user_codes && merchant.user_codes[0]) || '999999').toUpperCase();
   const dbStatus = TerminalStore.getSlotStatus(code);
   const sockets = userSockets.get(code);
   const wsCount = sockets ? sockets.size : 0;
@@ -136,9 +176,11 @@ function getSlotStatus(merchant) {
     maxSlots: 2,
     slotText: `${count}/2`,
     slots: [
-      { code, slotNumber: 1, connected: dbStatus.slots[0].connected || count >= 1, activeUsers: count },
-      { code, slotNumber: 2, connected: dbStatus.slots[1].connected || count >= 2, activeUsers: count }
-    ]
+      { code, slotNumber: 1, name: 'User Terminal 1', connected: dbStatus.slots[0].connected || count >= 1, activeUsers: count, status: (dbStatus.slots[0].connected || count >= 1) ? 'connected' : 'available' },
+      { code, slotNumber: 2, name: 'User Terminal 2', connected: dbStatus.slots[1].connected || count >= 2, activeUsers: count, status: (dbStatus.slots[1].connected || count >= 2) ? 'connected' : 'available' },
+      { code, slotNumber: 3, name: 'User Terminal 3', connected: false, blocked: true, status: 'blocked', message: '⚠️ Access Blocked: Terminal 3 Restricted (Max 2 Terminals)' }
+    ],
+    terminal3Blocked: true
   };
 }
 
@@ -193,11 +235,14 @@ wss.on('connection', (ws) => {
         const merchantCode = (merchant.merchant_code || (merchant.user_codes && merchant.user_codes[0]) || code).toUpperCase();
         const existingSockets = userSockets.get(merchantCode) || new Set();
 
-        // Enforce maximum 2 distinct users per merchant code
+        // Enforce maximum 2 distinct users per merchant code - Block Terminal 3
         if (existingSockets.size >= 2 && !existingSockets.has(ws)) {
           ws.send(JSON.stringify({
             type: 'user_error',
-            message: `Pairing limit reached: Maximum 2 users already connected to merchant ${merchantCode}.`
+            terminal3Blocked: true,
+            slotLimitExceeded: true,
+            error: 'Access Blocked: Maximum 2 terminals (Terminal 1 & Terminal 2) allowed. Terminal 3 is blocked.',
+            message: `⚠️ ACCESS BLOCKED: Terminal 3 is restricted. Maximum 2 terminals are permitted per merchant.`
           }));
           return;
         }
@@ -541,7 +586,13 @@ app.post('/api/merchant/update-upi', (req, res) => {
 // Payment Request Dispatcher (Single or Auto-Split Chunks <= 1999)
 app.post(['/api/merchant/payment-request', '/api/merchant/dispatch'], (req, res) => {
   try {
-    const { merchantId, targetSlotCode, amount, upi_id } = req.body;
+    const { merchantId, targetSlotCode, amount, upi_id, targetTerminal } = req.body;
+    if (targetTerminal === 3 || targetTerminal === '3' || (targetSlotCode && (targetSlotCode.endsWith('-3') || targetSlotCode.includes('slot3') || targetSlotCode.includes('terminal3')))) {
+      return res.status(403).json({
+        error: '⚠️ Access Blocked: Terminal 3 is not allowed. Only Terminal 1 and Terminal 2 are authorized for your merchant code.',
+        terminal3Blocked: true
+      });
+    }
     if (!merchantId || !amount || Number(amount) <= 0) {
       return res.status(400).json({ error: 'Valid merchantId and positive amount are required' });
     }
@@ -662,6 +713,18 @@ app.post('/api/merchant/payment-action', (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
+});
+
+// Terminal 3 Blocked Handler (Blocks access and returns warning sign)
+app.all(['/api/merchant/terminal/3', '/api/terminal/3'], (req, res) => {
+  res.status(403).json({
+    valid: false,
+    blocked: true,
+    terminal3Blocked: true,
+    slotNumber: 3,
+    error: 'Access Blocked: Terminal 3 is not allowed. Maximum 2 terminals per merchant.',
+    message: '⚠️ ACCESS BLOCKED: Terminal 3 is restricted. Maximum 2 live terminals are allowed per merchant account.'
+  });
 });
 
 // Unified Merchant State Synchronization Endpoint (One-Stop Poll for Serverless & WebSockets)
@@ -794,6 +857,16 @@ app.get(['/api/user/terminal/:code', '/api/user/poll/:code'], async (req, res) =
 
     // Register active heartbeat in persistent TerminalStore
     const terminal = TerminalStore.registerHeartbeat(cleanCode, sessionId);
+    if (terminal && terminal.blocked) {
+      return res.status(403).json({
+        valid: false,
+        blocked: true,
+        terminal3Blocked: true,
+        slotNumber: 3,
+        error: terminal.error || 'Access Blocked: Terminal 3 is not permitted.',
+        message: terminal.message || '⚠️ ACCESS BLOCKED: Terminal 3 is restricted. Maximum 2 terminals are allowed per merchant account.'
+      });
+    }
     const slotInfo = getSlotStatus(merchant);
 
     // Active transaction lookup
@@ -1035,50 +1108,10 @@ app.post('/api/admin/clear-fake-data', (req, res) => {
   }
 });
 
-function resolveHtml(...candidates) {
-  for (const c of candidates) {
-    if (fs.existsSync(c)) return c;
-  }
-  return candidates[0];
-}
-
-// Explicit routes for *.html files
-app.get('/merchant.html', (req, res) => {
-  res.sendFile(resolveHtml(
-    path.join(__dirname, 'public', 'merchant', 'index.html'),
-    path.join(__dirname, 'public', 'merchant.html'),
-    path.join(__dirname, 'merchant.html')
-  ));
-});
-
-app.get('/user.html', (req, res) => {
-  res.sendFile(resolveHtml(
-    path.join(__dirname, 'public', 'user', 'index.html'),
-    path.join(__dirname, 'public', 'user.html'),
-    path.join(__dirname, 'user.html')
-  ));
-});
-
-app.get('/admin.html', (req, res) => {
-  res.sendFile(resolveHtml(
-    path.join(__dirname, 'public', 'admin', 'index.html'),
-    path.join(__dirname, 'public', 'admin.html'),
-    path.join(__dirname, 'admin.html')
-  ));
-});
-
-// Root Landing Page
-app.get('/', (req, res) => {
-  res.sendFile(resolveHtml(
-    path.join(__dirname, 'public', 'index.html'),
-    path.join(__dirname, 'index.html')
-  ));
-});
 
 
 
-
-if (require.main === module || !process.env.VERCEL) {
+if (require.main === module) {
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`UPI Payment System running on port ${PORT}:`);
     console.log(`- Local PC:       http://localhost:${PORT}`);

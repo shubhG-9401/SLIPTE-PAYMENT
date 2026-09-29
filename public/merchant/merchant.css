@@ -1018,12 +1018,14 @@ input:focus, .select-input:focus {
   font-weight: 700;
   color: #475569;
   border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
 }
 
 .data-table td {
   padding: 12px 14px;
   border-bottom: 1px solid #f1f5f9;
   color: #334155;
+  white-space: nowrap;
 }
 
 .status-badge {
@@ -1341,3 +1343,100 @@ input:focus, .select-input:focus {
   font-weight: 700;
   color: #64748b;
 }
+
+/* Terminal 3 Blocked State & Warning Alert Banner */
+.slot-pill.slot-blocked {
+  background: #fff1f2;
+  border: 1.5px dashed #f43f5e;
+  color: #9f1239;
+  cursor: not-allowed;
+}
+
+.blocked-dot {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.badge-blocked {
+  color: #e11d48;
+  font-weight: 800;
+  font-size: 0.76rem;
+}
+
+.terminal-quick-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-danger-soft {
+  background: #ffe4e6;
+  color: #be123c;
+  border: 1px solid #fca5a5;
+  font-weight: 700;
+  font-size: 0.78rem;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-danger-soft:hover {
+  background: #fecdd3;
+  color: #9f1239;
+  border-color: #f87171;
+}
+
+.terminal-warning-alert {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%);
+  border: 2px solid #e11d48;
+  border-radius: 12px;
+  color: #881337;
+  box-shadow: 0 4px 14px rgba(225, 29, 72, 0.12);
+  animation: slideWarning 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideWarning {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.terminal-warning-alert .alert-icon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+}
+
+.terminal-warning-alert .warning-text-group {
+  flex: 1;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.terminal-warning-alert .warning-text-group strong {
+  display: block;
+  font-size: 0.92rem;
+  color: #9f1239;
+  margin-bottom: 2px;
+}
+
+.terminal-warning-alert .close-alert-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.4rem;
+  color: #9f1239;
+  cursor: pointer;
+  padding: 0 6px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.terminal-warning-alert .close-alert-btn:hover {
+  color: #4c0519;
+}
+

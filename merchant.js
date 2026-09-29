@@ -456,7 +456,7 @@ function onLoginSuccess(merchant) {
   dashboardSection.classList.remove('hidden');
   navUserSection.classList.remove('hidden');
 
-  const isDemo = merchant.is_demo || merchant.merchant_code === 'MC-99';
+  const isDemo = merchant.is_demo || merchant.merchant_code === '999999' || merchant.merchant_code === 'MC-99';
   navMerchantPhone.textContent = merchant.phone + (isDemo ? ' [Demo]' : '');
   document.getElementById('dashMerchantPhone').textContent = merchant.phone;
   document.getElementById('dashMerchantUpi').textContent = merchant.upi_id || 'paytm.s1m66cw@pty';
@@ -465,7 +465,7 @@ function onLoginSuccess(merchant) {
     destUpiInput.value = merchant.upi_id || 'paytm.s1m66cw@pty';
   }
 
-  const code = merchant.merchant_code || (merchant.user_codes && merchant.user_codes[0]) || 'MC-99';
+  const code = merchant.merchant_code || (merchant.user_codes && merchant.user_codes[0]) || '999999';
   const codeEl = document.getElementById('dashMerchantCode');
   if (codeEl) codeEl.textContent = code;
 
@@ -624,9 +624,9 @@ function connectWebSocket() {
   }
 }
 
-// Terminal & Slot Management (Max 2 distinct connected users)
+// Terminal & Slot Management (Max 2 distinct connected users; Terminal 3 is blocked)
 function renderSlots(slots, slotInfo) {
-  const code = currentMerchant.merchant_code || (currentMerchant.user_codes && currentMerchant.user_codes[0]) || 'MC-99';
+  const code = (currentMerchant && currentMerchant.merchant_code) || (currentMerchant && currentMerchant.user_codes && currentMerchant.user_codes[0]) || '999999';
   const codeEl = document.getElementById('dashMerchantCode');
   if (codeEl) codeEl.textContent = code;
 
@@ -634,7 +634,7 @@ function renderSlots(slots, slotInfo) {
   if (slotInfo && typeof slotInfo.connectedCount === 'number') {
     activeCount = slotInfo.connectedCount;
   } else if (Array.isArray(slots) && slots.length > 0) {
-    activeCount = slots.reduce((acc, s) => acc + (s.activeUsers || (s.connected ? 1 : 0)), 0);
+    activeCount = slots.filter(s => !s.blocked && (s.activeUsers > 0 || s.connected)).length;
   }
 
   const counter = document.getElementById('dashSlotsCounter');
@@ -651,6 +651,7 @@ function renderSlots(slots, slotInfo) {
   const txt1 = document.getElementById('slotText1');
   const ind2 = document.getElementById('slotIndicator2');
   const txt2 = document.getElementById('slotText2');
+  const ind3 = document.getElementById('slotIndicator3');
 
   if (ind1 && txt1) {
     if (activeCount >= 1) {
@@ -668,18 +669,55 @@ function renderSlots(slots, slotInfo) {
       txt2.textContent = 'User 2 Connected (Slot 2/2)';
     } else {
       ind2.className = 'slot-pill';
-      txt2.textContent = 'Available';
+      txt2.textContent = 'Available (1/2)';
+    }
+  }
+
+  if (ind3) {
+    ind3.className = 'slot-pill slot-blocked';
+  }
+
+  // Display warning banner if slotInfo reports terminal 3 was blocked
+  if (slotInfo && slotInfo.terminal3Blocked) {
+    const warningBanner = document.getElementById('terminal3WarningBanner');
+    if (warningBanner) {
+      warningBanner.classList.remove('hidden');
+      playSound('beep');
     }
   }
 }
 
 // Setup Controls
 function setupDashboardControls() {
+  // Terminal 3 Blocked Warning banner controls
+  const testT3Btn = document.getElementById('testTerminal3Btn');
+  const warningBanner = document.getElementById('terminal3WarningBanner');
+  const closeWarningBtn = document.getElementById('closeWarningBtn');
+
+  if (testT3Btn && warningBanner) {
+    testT3Btn.addEventListener('click', () => {
+      warningBanner.classList.remove('hidden');
+      playSound('beep');
+      fetch('/api/terminal/3')
+        .then(r => r.json())
+        .then(d => {
+          console.warn('Terminal 3 access response:', d);
+        })
+        .catch(err => console.error(err));
+    });
+  }
+
+  if (closeWarningBtn && warningBanner) {
+    closeWarningBtn.addEventListener('click', () => {
+      warningBanner.classList.add('hidden');
+    });
+  }
+
   // Copy Unique Merchant Code Button
   const copyBtn = document.getElementById('copyMerchantCodeBtn');
   if (copyBtn) {
     copyBtn.addEventListener('click', () => {
-      const code = (currentMerchant && currentMerchant.merchant_code) || document.getElementById('dashMerchantCode').textContent || 'MC-99';
+      const code = (currentMerchant && currentMerchant.merchant_code) || document.getElementById('dashMerchantCode').textContent || '999999';
       navigator.clipboard.writeText(code).then(() => {
         const orig = copyBtn.textContent;
         copyBtn.textContent = '✓ Copied!';
@@ -789,7 +827,7 @@ function setupDashboardControls() {
     }
 
     try {
-      const code = (currentMerchant && currentMerchant.merchant_code) || 'MC-99';
+      const code = (currentMerchant && currentMerchant.merchant_code) || '999999';
       const res = await fetch('/api/merchant/payment-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -7,7 +7,10 @@ let timerInterval = null;
 // Audio alerts
 function playSound(type) {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    if (ctx.state === 'suspended') return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -26,7 +29,7 @@ function playSound(type) {
       osc.stop(ctx.currentTime + 0.35);
     }
   } catch (e) {
-    // AudioContext might be blocked until user interacts
+    // AudioContext blocked until user interacts
   }
 }
 
@@ -453,7 +456,7 @@ function onLoginSuccess(merchant) {
   dashboardSection.classList.remove('hidden');
   navUserSection.classList.remove('hidden');
 
-  const isDemo = merchant.is_demo || merchant.merchant_code === 'MC-99';
+  const isDemo = merchant.is_demo || merchant.merchant_code === '999999' || merchant.merchant_code === 'MC-99';
   navMerchantPhone.textContent = merchant.phone + (isDemo ? ' [Demo]' : '');
   document.getElementById('dashMerchantPhone').textContent = merchant.phone;
   document.getElementById('dashMerchantUpi').textContent = merchant.upi_id || 'paytm.s1m66cw@pty';
@@ -462,7 +465,7 @@ function onLoginSuccess(merchant) {
     destUpiInput.value = merchant.upi_id || 'paytm.s1m66cw@pty';
   }
 
-  const code = merchant.merchant_code || (merchant.user_codes && merchant.user_codes[0]) || 'MC-99';
+  const code = merchant.merchant_code || (merchant.user_codes && merchant.user_codes[0]) || '999999';
   const codeEl = document.getElementById('dashMerchantCode');
   if (codeEl) codeEl.textContent = code;
 
@@ -472,58 +475,158 @@ function onLoginSuccess(merchant) {
   }
 
   renderSlots(merchant.slots || [], merchant.slotInfo);
+  startMerchantPollingBackup();
   connectWebSocket();
-  loadStats();
-  loadTransactions();
 }
 
-// WebSocket Connection
+let merchantPollInterval = null;
+function startMerchantPollingBackup() {
+  if (merchantPollInterval) clearInterval(merchantPollInterval);
+  syncMerchantState();
+  merchantPollInterval = setInterval(() => {
+    if (currentMerchant) {
+      syncMerchantState();
+    }
+  }, 1200);
+}
+
+async function syncMerchantState() {
+  if (!currentMerchant) return;
+  try {
+    const res = await fetch(`/api/merchant/sync/${currentMerchant.id}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.success) return;
+
+    // 1. Update Slots (Slot 1 and Slot 2 indicators)
+    if (data.slots || data.slotInfo) {
+      renderSlots(data.slots || [], data.slotInfo);
+    }
+
+    // 2. Update Revenue & Transaction Counts
+    if (data.stats) {
+      const s = data.stats;
+      document.getElementById('statTotalRevenue').textContent = formatCurrency(s.totalRevenue);
+      document.getElementById('statTodayRevenue').textContent = formatCurrency(s.todayRevenue);
+      document.getElementById('statApprovedCount').textContent = s.approvedCount;
+      document.getElementById('statDeniedCount').textContent = s.deniedCount;
+    }
+
+    // 3. Update Payment History Table
+    if (data.transactions) {
+      renderTransactionsTable(data.transactions);
+    }
+
+    // 4. Update Pending Approvals Queue & UTR
+    syncActivePaymentFromState(data.activePayment);
+  } catch (e) {
+    console.warn('Sync error:', e);
+  }
+}
+
+function syncActivePaymentFromState(ap) {
+  if (!ap) {
+    if (activeTxn && activeTxn.status !== 'approved' && activeTxn.status !== 'denied') {
+      activeTxn = null;
+      document.getElementById('noActiveTxnMsg').classList.remove('hidden');
+      document.getElementById('activeTxnDetails').classList.add('hidden');
+      document.getElementById('activeTimerBadge').classList.add('hidden');
+      clearInterval(timerInterval);
+    }
+    return;
+  }
+
+  const isNewTxn = !activeTxn || activeTxn.id !== ap.id;
+  const isNewPart = activeTxn && activeTxn.current_part_index !== ap.current_part_index;
+
+  if (isNewTxn || isNewPart) {
+    activeTxn = {
+      id: ap.id,
+      merchant_id: currentMerchant.id,
+      user_code: ap.user_code,
+      total_amount: ap.total_amount,
+      split_count: ap.split_count,
+      current_part_index: ap.current_part_index,
+      chunks: [ap.currentChunk]
+    };
+    setActiveTransaction(activeTxn, ap.remainingSeconds || 120);
+  }
+
+  // If customer submitted payment / UTR
+  if (ap.status === 'submitted' || (ap.currentChunk && ap.currentChunk.status === 'submitted')) {
+    const banner = document.getElementById('activeStatusBanner');
+    if (banner && !banner.classList.contains('submitted') && !banner.classList.contains('approved')) {
+      playSound('beep');
+      banner.className = 'active-status-banner submitted';
+      document.getElementById('activeStatusText').textContent = '🔔 Customer submitted payment for verification.';
+    }
+    const utrVal = ap.utr || (ap.currentChunk && ap.currentChunk.utr);
+    if (utrVal && utrVal !== 'Not provided') {
+      document.getElementById('activeUtrBox').classList.remove('hidden');
+      document.getElementById('activeUtrVal').textContent = utrVal;
+    }
+  }
+}
+
+// WebSocket Connection (with fallback backoff for Serverless/Vercel)
+let wsRetries = 0;
 function connectWebSocket() {
   if (!currentMerchant) return;
+  if (wsRetries > 3) return; // Prevent infinite console errors on serverless platforms (Vercel)
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = `${protocol}//${window.location.host}`;
-  ws = new WebSocket(wsUrl);
+  try {
+    ws = new WebSocket(wsUrl);
 
-  ws.onopen = () => {
-    ws.send(JSON.stringify({
-      type: 'merchant_init',
-      merchantId: currentMerchant.id
-    }));
-  };
+    ws.onopen = () => {
+      wsRetries = 0;
+      ws.send(JSON.stringify({
+        type: 'merchant_init',
+        merchantId: currentMerchant.id
+      }));
+    };
 
-  ws.onmessage = (event) => {
-    try {
-      const msg = JSON.parse(event.data);
-      if (msg.type === 'merchant_ready' || msg.type === 'slot_updated') {
-        renderSlots(msg.slots || [], msg.slotInfo);
-      } else if (msg.type === 'user_submitted_payment') {
-        playSound('beep');
-        onUserSubmittedPayment(msg);
-      } else if (msg.type === 'chunk_approved') {
-        onChunkApproved(msg);
-      } else if (msg.type === 'payment_decision_confirmed') {
-        onDecisionConfirmed(msg.transaction);
-      } else if (msg.type === 'payment_expired') {
-        onPaymentExpired(msg.txnId);
-      } else if (msg.type === 'merchant_blocked') {
-        alert('⚠️ ' + msg.message);
-        logoutBtn.click();
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'merchant_ready' || msg.type === 'slot_updated') {
+          renderSlots(msg.slots || [], msg.slotInfo);
+        } else if (msg.type === 'user_submitted_payment') {
+          playSound('beep');
+          onUserSubmittedPayment(msg);
+        } else if (msg.type === 'chunk_approved') {
+          onChunkApproved(msg);
+        } else if (msg.type === 'payment_decision_confirmed') {
+          onDecisionConfirmed(msg.transaction);
+        } else if (msg.type === 'payment_expired') {
+          onPaymentExpired(msg.txnId);
+        } else if (msg.type === 'merchant_blocked') {
+          alert('⚠️ ' + msg.message);
+          logoutBtn.click();
+        }
+      } catch (e) {
+        console.error('WS Error:', e);
       }
-    } catch (e) {
-      console.error('WS Error:', e);
-    }
-  };
+    };
 
-  ws.onclose = () => {
-    if (currentMerchant) {
-      setTimeout(connectWebSocket, 3000);
-    }
-  };
+    ws.onerror = () => {
+      wsRetries++;
+    };
+
+    ws.onclose = () => {
+      wsRetries++;
+      if (currentMerchant && wsRetries <= 3) {
+        setTimeout(connectWebSocket, 5000);
+      }
+    };
+  } catch (e) {
+    wsRetries++;
+  }
 }
 
-// Terminal & Slot Management (Max 2 distinct connected users)
+// Terminal & Slot Management (Max 2 distinct connected users; Terminal 3 is blocked)
 function renderSlots(slots, slotInfo) {
-  const code = currentMerchant.merchant_code || (currentMerchant.user_codes && currentMerchant.user_codes[0]) || 'MC-99';
+  const code = (currentMerchant && currentMerchant.merchant_code) || (currentMerchant && currentMerchant.user_codes && currentMerchant.user_codes[0]) || '999999';
   const codeEl = document.getElementById('dashMerchantCode');
   if (codeEl) codeEl.textContent = code;
 
@@ -531,7 +634,7 @@ function renderSlots(slots, slotInfo) {
   if (slotInfo && typeof slotInfo.connectedCount === 'number') {
     activeCount = slotInfo.connectedCount;
   } else if (Array.isArray(slots) && slots.length > 0) {
-    activeCount = slots.reduce((acc, s) => acc + (s.activeUsers || (s.connected ? 1 : 0)), 0);
+    activeCount = slots.filter(s => !s.blocked && (s.activeUsers > 0 || s.connected)).length;
   }
 
   const counter = document.getElementById('dashSlotsCounter');
@@ -548,6 +651,7 @@ function renderSlots(slots, slotInfo) {
   const txt1 = document.getElementById('slotText1');
   const ind2 = document.getElementById('slotIndicator2');
   const txt2 = document.getElementById('slotText2');
+  const ind3 = document.getElementById('slotIndicator3');
 
   if (ind1 && txt1) {
     if (activeCount >= 1) {
@@ -565,18 +669,55 @@ function renderSlots(slots, slotInfo) {
       txt2.textContent = 'User 2 Connected (Slot 2/2)';
     } else {
       ind2.className = 'slot-pill';
-      txt2.textContent = 'Available';
+      txt2.textContent = 'Available (1/2)';
+    }
+  }
+
+  if (ind3) {
+    ind3.className = 'slot-pill slot-blocked';
+  }
+
+  // Display warning banner if slotInfo reports terminal 3 was blocked
+  if (slotInfo && slotInfo.terminal3Blocked) {
+    const warningBanner = document.getElementById('terminal3WarningBanner');
+    if (warningBanner) {
+      warningBanner.classList.remove('hidden');
+      playSound('beep');
     }
   }
 }
 
 // Setup Controls
 function setupDashboardControls() {
+  // Terminal 3 Blocked Warning banner controls
+  const testT3Btn = document.getElementById('testTerminal3Btn');
+  const warningBanner = document.getElementById('terminal3WarningBanner');
+  const closeWarningBtn = document.getElementById('closeWarningBtn');
+
+  if (testT3Btn && warningBanner) {
+    testT3Btn.addEventListener('click', () => {
+      warningBanner.classList.remove('hidden');
+      playSound('beep');
+      fetch('/api/terminal/3')
+        .then(r => r.json())
+        .then(d => {
+          console.warn('Terminal 3 access response:', d);
+        })
+        .catch(err => console.error(err));
+    });
+  }
+
+  if (closeWarningBtn && warningBanner) {
+    closeWarningBtn.addEventListener('click', () => {
+      warningBanner.classList.add('hidden');
+    });
+  }
+
   // Copy Unique Merchant Code Button
   const copyBtn = document.getElementById('copyMerchantCodeBtn');
   if (copyBtn) {
     copyBtn.addEventListener('click', () => {
-      const code = (currentMerchant && currentMerchant.merchant_code) || document.getElementById('dashMerchantCode').textContent || 'MC-99';
+      const code = (currentMerchant && currentMerchant.merchant_code) || document.getElementById('dashMerchantCode').textContent || '999999';
       navigator.clipboard.writeText(code).then(() => {
         const orig = copyBtn.textContent;
         copyBtn.textContent = '✓ Copied!';
@@ -686,7 +827,7 @@ function setupDashboardControls() {
     }
 
     try {
-      const code = (currentMerchant && currentMerchant.merchant_code) || 'MC-99';
+      const code = (currentMerchant && currentMerchant.merchant_code) || '999999';
       const res = await fetch('/api/merchant/payment-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -898,6 +1039,9 @@ async function loadStats() {
       document.getElementById('statTodayRevenue').textContent = formatCurrency(s.todayRevenue);
       document.getElementById('statApprovedCount').textContent = s.approvedCount;
       document.getElementById('statDeniedCount').textContent = s.deniedCount;
+      if (s.slots || s.slotInfo) {
+        renderSlots(s.slots || [], s.slotInfo);
+      }
     }
   } catch (e) {
     console.error('Stats error:', e);
