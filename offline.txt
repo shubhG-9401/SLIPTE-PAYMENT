@@ -1,4 +1,0 @@
-NETWORKING_STATUS: OFF
-TRIGGERED_BY: shubhG-9401
-REASON: Kill switch protocol engaged. System network access severed.
-DELETE_THIS_FILE_TO_RESTORE: TRUE
