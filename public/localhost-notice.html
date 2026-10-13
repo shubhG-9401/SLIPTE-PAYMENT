@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Localhost Required | UPI Merchant Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, #0b192c 0%, #1e3a8a 50%, #0f172a 100%);
+      color: #f8fafc;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+
+    .notice-container {
+      max-width: 760px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.98);
+      color: #0f172a;
+      border-radius: 20px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .notice-header {
+      background: #002970;
+      color: #ffffff;
+      padding: 24px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 3px solid #0284c7;
+    }
+
+    .upi-logo-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .upi-symbol {
+      background: #0284c7;
+      color: #ffffff;
+      font-weight: 900;
+      font-size: 1.1rem;
+      padding: 6px 12px;
+      border-radius: 8px;
+      letter-spacing: 0.05em;
+    }
+
+    .upi-title-text {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .status-pill-warning {
+      background: #fef08a;
+      color: #854d0e;
+      font-weight: 700;
+      font-size: 0.78rem;
+      padding: 6px 12px;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .notice-body {
+      padding: 32px;
+    }
+
+    .headline-row {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .notice-icon {
+      font-size: 3.5rem;
+      margin-bottom: 12px;
+      display: inline-block;
+    }
+
+    .notice-title {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: #002970;
+      letter-spacing: -0.03em;
+      margin-bottom: 8px;
+    }
+
+    .notice-desc {
+      font-size: 0.98rem;
+      color: #475569;
+      line-height: 1.6;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .notice-desc strong {
+      color: #0284c7;
+    }
+
+    .reasons-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+
+    .reason-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+
+    .reason-card h4 {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #1e3a8a;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .reason-card p {
+      font-size: 0.82rem;
+      color: #64748b;
+      line-height: 1.45;
+    }
+
+    .instructions-box {
+      background: #0f172a;
+      color: #f8fafc;
+      border-radius: 14px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+    }
+
+    .instructions-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #38bdf8;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .step-item {
+      margin-bottom: 12px;
+    }
+
+    .step-label {
+      font-size: 0.82rem;
+      color: #94a3b8;
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+
+    .code-block {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      color: #38bdf8;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .copy-btn {
+      background: #334155;
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .copy-btn:hover {
+      background: #0284c7;
+    }
+
+    .actions-row {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.92rem;
+      text-decoration: none;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .btn-primary {
+      background: #002970;
+      color: #ffffff;
+    }
+
+    .btn-primary:hover {
+      background: #0369a1;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+    }
+
+    .btn-outline {
+      background: #ffffff;
+      color: #002970;
+      border: 1.5px solid #002970;
+    }
+
+    .btn-outline:hover {
+      background: #f1f5f9;
+      transform: translateY(-1px);
+    }
+
+    .notice-footer {
+      text-align: center;
+      margin-top: 18px;
+      font-size: 0.78rem;
+      color: #94a3b8;
+    }
+
+    @media (max-width: 600px) {
+      .notice-header {
+        padding: 16px 20px;
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+      }
+      .notice-body {
+        padding: 24px 16px;
+      }
+      .notice-title {
+        font-size: 1.4rem;
+      }
+      .reasons-grid {
+        grid-template-columns: 1fr;
+      }
+      .actions-row {
+        flex-direction: column;
+      }
+      .btn-action {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <main class="notice-container" role="main">
+    <header class="notice-header">
+      <div class="upi-logo-box">
+        <span class="upi-symbol">▲ UPI</span>
+        <span class="upi-title-text">Instant Payment Terminal</span>
+      </div>
+      <div class="status-pill-warning">
+        <span>⚠️</span> Localhost Deployment Required
+      </div>
+    </header>
+
+    <div class="notice-body">
+      <div class="headline-row">
+        <div class="notice-icon">💻</div>
+        <h1 class="notice-title">This Platform Must Be Run on Localhost</h1>
+        <p class="notice-desc">
+          You are viewing <strong>slipt-rho.vercel.app</strong>. This multi-portal UPI Gateway and Terminal Management system requires persistent state, local Wi-Fi pairing, and real-time WebSockets, which are intended for <strong>local execution</strong>.
+        </p>
+      </div>
+
+      <!-- Why Localhost Card -->
+      <div class="reasons-grid">
+        <div class="reason-card">
+          <h4><span>🔄</span> Stateful WebSockets</h4>
+          <p>Instantaneous bi-directional updates between merchant dashboards and paired customer terminals with room isolation.</p>
+        </div>
+        <div class="reason-card">
+          <h4><span>📶</span> Local Wi-Fi Phone Testing</h4>
+          <p>Pairs mobile phones over the same local router network via local IP (e.g. <code>192.168.1.7:3000</code>).</p>
+        </div>
+        <div class="reason-card">
+          <h4><span>🛡️</span> Terminal 3 Enforcement</h4>
+          <p>Enforces strict 2-terminal concurrent limits per merchant code with instant 403 blocking on Terminal 3.</p>
+        </div>
+        <div class="reason-card">
+          <h4><span>⚡</span> &le; ₹1999 Auto-Splitting</h4>
+          <p>Automated payment chunk calculation and round-robin destination UPI routing across multiple accounts.</p>
+        </div>
+      </div>
+
+      <!-- Step-by-Step Run Instructions -->
+      <section class="instructions-box" aria-label="Localhost Setup Steps">
+        <div class="instructions-title">
+          <span>🚀</span> Quick Setup: Run Locally in 3 Commands
+        </div>
+
+        <div class="step-item">
+          <div class="step-label">1. Clone Repository:</div>
+          <div class="code-block">
+            <code>git clone https://github.com/shubhG-9401/SLIPTE-PAYMENT.git</code>
+            <button type="button" class="copy-btn" onclick="copyText('git clone https://github.com/shubhG-9401/SLIPTE-PAYMENT.git', this)">Copy</button>
+          </div>
+        </div>
+
+        <div class="step-item">
+          <div class="step-label">2. Install Dependencies:</div>
+          <div class="code-block">
+            <code>cd SLIPTE-PAYMENT && npm install</code>
+            <button type="button" class="copy-btn" onclick="copyText('cd SLIPTE-PAYMENT && npm install', this)">Copy</button>
+          </div>
+        </div>
+
+        <div class="step-item">
+          <div class="step-label">3. Launch Local Server:</div>
+          <div class="code-block">
+            <code>npm start</code>
+            <button type="button" class="copy-btn" onclick="copyText('npm start', this)">Copy</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Action Buttons -->
+      <div class="actions-row">
+        <a href="https://github.com/shubhG-9401/SLIPTE-PAYMENT" target="_blank" rel="noopener noreferrer" class="btn-action btn-primary">
+          📂 View Source on GitHub &rarr;
+        </a>
+        <a href="http://localhost:3000" class="btn-action btn-outline">
+          🌐 Open http://localhost:3000
+        </a>
+      </div>
+    </div>
+  </main>
+
+  <footer class="notice-footer">
+    Built for Localhost Pair-Programming & Private Merchant Testing • MIT License
+  </footer>
+
+  <script>
+    function copyText(str, btn) {
+      navigator.clipboard.writeText(str).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = '✓ Copied';
+        setTimeout(() => { btn.textContent = orig; }, 2000);
+      });
+    }
+  </script>
+</body>
+</html>
