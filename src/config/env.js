@@ -44,6 +44,7 @@ const env = {
   ADMIN_USERNAME: process.env.ADMIN_USERNAME || 'shubhg9401',
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || 'admin123',
   DEMO_MERCHANT_PASSWORD: process.env.DEMO_MERCHANT_PASSWORD || 'demo123',
+  DEMO_MODE: process.env.DEMO_MODE !== 'false' && process.env.DEMO_MODE !== '0', // Defaults to true in dev
   isDev: (process.env.NODE_ENV || 'development') === 'development'
 };
 

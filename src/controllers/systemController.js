@@ -30,6 +30,16 @@ const systemController = {
     });
   },
 
+  getConfig(req, res) {
+    res.json({
+      success: true,
+      demoMode: env.DEMO_MODE,
+      countdownSeconds: env.COUNTDOWN_TIMER_SECONDS,
+      splitMaxAmount: env.SPLIT_MAX_AMOUNT,
+      maxTerminalSlots: env.MAX_TERMINAL_SLOTS
+    });
+  },
+
   blockTerminal3(req, res) {
     res.status(403).json({
       success: false,

@@ -5,7 +5,7 @@
       "phone": "9999999999",
       "password": "$2a$08$b7BNvQH1O2iGGchjc6cBOuAMlmwsmg.O2OwuBoSurR1wTZJlN/8rW",
       "provider": "paytm",
-      "upi_id": "store_alpha@paytm",
+      "upi_id": "upiA@paytm",
       "fee_paid": true,
       "razorpay_payment_id": "pay_demo_init",
       "status": "active",
@@ -17,7 +17,8 @@
       "is_demo": true,
       "created_at": "2026-09-20T07:48:27.489Z",
       "upi_ids": [
-        "store_alpha@paytm"
+        "upiA@paytm",
+        "upiB@paytm"
       ]
     },
     {
@@ -193,6 +194,79 @@
         "896275"
       ],
       "created_at": "2026-10-13T08:28:22.307Z"
+    },
+    {
+      "id": "m_1791881012924_t5ulb",
+      "phone": "9158123077",
+      "password": "$2a$08$7crlQAVzgl31XPfwFZtYRu.E6zTqaLtfzCNxEzR/90YjzR0Jv6BCq",
+      "provider": "paytm",
+      "upi_id": "9158123077@paytm",
+      "upi_ids": [
+        "9158123077@paytm"
+      ],
+      "fee_paid": true,
+      "razorpay_payment_id": null,
+      "status": "active",
+      "merchant_code": "839522",
+      "user_codes": [
+        "839522"
+      ],
+      "created_at": "2026-10-13T08:43:32.924Z"
+    },
+    {
+      "id": "m_1791881088240_qm4v9",
+      "phone": "9208433647",
+      "password": "$2a$08$/nws8hOhOy5PyJgP9d4wTe33VTnQ9j5YqxY/VrzH5QTgEX45eDxfe",
+      "provider": "paytm",
+      "upi_id": "9208433647@paytm",
+      "upi_ids": [
+        "9208433647@paytm"
+      ],
+      "fee_paid": true,
+      "razorpay_payment_id": null,
+      "status": "active",
+      "merchant_code": "799057",
+      "user_codes": [
+        "799057"
+      ],
+      "created_at": "2026-10-13T08:44:48.240Z"
+    },
+    {
+      "id": "m_1791881088386_67mew",
+      "phone": "9813448528",
+      "password": "$2a$08$X/SUOyjrHCWAIAxCYZhon.qJw4Vn4F/m9RuQ9gL72DbbUI.TB3uNy",
+      "provider": "paytm",
+      "upi_id": "store_alpha@paytm",
+      "upi_ids": [
+        "store_alpha@paytm",
+        "store_beta@paytm"
+      ],
+      "fee_paid": true,
+      "razorpay_payment_id": null,
+      "status": "active",
+      "merchant_code": "666084",
+      "user_codes": [
+        "666084"
+      ],
+      "created_at": "2026-10-13T08:44:48.386Z"
+    },
+    {
+      "id": "m_1791881088945_tpsld",
+      "phone": "9892069283",
+      "password": "$2a$08$pFKxibgavHuKLe/XOmJ5/eafss1XXG8/Qx2dBVuvni.Bia2AuRU0m",
+      "provider": "paytm",
+      "upi_id": "paytm.s1m66cw@pty",
+      "upi_ids": [
+        "paytm.s1m66cw@pty"
+      ],
+      "fee_paid": true,
+      "razorpay_payment_id": null,
+      "status": "active",
+      "merchant_code": "759177",
+      "user_codes": [
+        "759177"
+      ],
+      "created_at": "2026-10-13T08:44:48.945Z"
     }
   ],
   "transactions": [
@@ -3991,6 +4065,828 @@
       "denied_at": null,
       "approved_amount": 500,
       "utr": "UTR123456789012"
+    },
+    {
+      "id": "txn_1791880221672_x6wq",
+      "merchant_id": "m_demo",
+      "merchant_code": "999999",
+      "user_code": "999999",
+      "merchant_upi_id": "store_alpha@paytm",
+      "merchant_upi_ids": [
+        "store_alpha@paytm"
+      ],
+      "merchant_phone": "9999999999",
+      "total_amount": 54,
+      "split_count": 1,
+      "current_part_index": 1,
+      "chunks": [
+        {
+          "part_index": 1,
+          "total_parts": 1,
+          "amount": 54,
+          "upi_id": "store_alpha@paytm",
+          "upi_uri": "upi://pay?pa=store_alpha@paytm&am=54&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "approved",
+          "approved_at": "2026-10-13T08:31:12.063Z",
+          "denied_at": null,
+          "submitted_at": "2026-10-13T08:31:06.371Z",
+          "utr": "Submitted (Self-Reported)"
+        }
+      ],
+      "splits": [
+        {
+          "part_index": 1,
+          "total_parts": 1,
+          "amount": 54,
+          "upi_id": "store_alpha@paytm",
+          "upi_uri": "upi://pay?pa=store_alpha@paytm&am=54&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "pending",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "status": "approved",
+      "created_at": "2026-10-13T08:30:21.672Z",
+      "expires_at": "2026-10-13T08:32:21.672Z",
+      "approved_at": "2026-10-13T08:31:12.063Z",
+      "denied_at": null,
+      "approved_amount": 54,
+      "utr": "Submitted (Self-Reported)"
+    },
+    {
+      "id": "txn_1791880301626_scxl",
+      "merchant_id": "m_demo",
+      "merchant_code": "999999",
+      "user_code": "999999",
+      "merchant_upi_id": "store_alpha@paytm",
+      "merchant_upi_ids": [
+        "store_alpha@paytm"
+      ],
+      "merchant_phone": "9999999999",
+      "total_amount": 5442.44,
+      "split_count": 3,
+      "current_part_index": 3,
+      "chunks": [
+        {
+          "part_index": 1,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "store_alpha@paytm",
+          "upi_uri": "upi://pay?pa=store_alpha@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "approved",
+          "approved_at": "2026-10-13T08:31:53.938Z",
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 2,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "store_alpha@paytm",
+          "upi_uri": "upi://pay?pa=store_alpha@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "approved",
+          "approved_at": "2026-10-13T08:31:59.209Z",
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 3,
+          "total_parts": 3,
+          "amount": 1444.44,
+          "upi_id": "store_alpha@paytm",
+          "upi_uri": "upi://pay?pa=store_alpha@paytm&am=1444.44&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "approved",
+          "approved_at": "2026-10-13T08:32:02.918Z",
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "splits": [
+        {
+          "part_index": 1,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "store_alpha@paytm",
+          "upi_uri": "upi://pay?pa=store_alpha@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "pending",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 2,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "store_alpha@paytm",
+          "upi_uri": "upi://pay?pa=store_alpha@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "queued",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 3,
+          "total_parts": 3,
+          "amount": 1444.44,
+          "upi_id": "store_alpha@paytm",
+          "upi_uri": "upi://pay?pa=store_alpha@paytm&am=1444.44&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "queued",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "status": "approved",
+      "created_at": "2026-10-13T08:31:41.626Z",
+      "expires_at": "2026-10-13T08:33:59.209Z",
+      "approved_at": "2026-10-13T08:32:02.918Z",
+      "denied_at": null,
+      "approved_amount": 5442.4400000000005
+    },
+    {
+      "id": "txn_1791880339108_9mov",
+      "merchant_id": "m_demo",
+      "merchant_code": "999999",
+      "user_code": "999999",
+      "merchant_upi_id": "store_alpha@paytm",
+      "merchant_upi_ids": [
+        "store_alpha@paytm"
+      ],
+      "merchant_phone": "9999999999",
+      "total_amount": 1,
+      "split_count": 1,
+      "current_part_index": 1,
+      "chunks": [
+        {
+          "part_index": 1,
+          "total_parts": 1,
+          "amount": 1,
+          "upi_id": "store_alpha@paytm",
+          "upi_uri": "upi://pay?pa=store_alpha@paytm&am=1&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "approved",
+          "approved_at": "2026-10-13T08:32:26.046Z",
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "splits": [
+        {
+          "part_index": 1,
+          "total_parts": 1,
+          "amount": 1,
+          "upi_id": "store_alpha@paytm",
+          "upi_uri": "upi://pay?pa=store_alpha@paytm&am=1&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "pending",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "status": "approved",
+      "created_at": "2026-10-13T08:32:19.108Z",
+      "expires_at": "2026-10-13T08:34:19.108Z",
+      "approved_at": "2026-10-13T08:32:26.046Z",
+      "denied_at": null,
+      "approved_amount": 1
+    },
+    {
+      "id": "txn_1791880994724_0eor",
+      "merchant_id": "m_demo",
+      "merchant_code": "999999",
+      "user_code": "999999",
+      "merchant_upi_id": "upiA@paytm",
+      "merchant_upi_ids": [
+        "upiA@paytm",
+        "upiB@paytm"
+      ],
+      "merchant_phone": "9999999999",
+      "total_amount": 4500,
+      "split_count": 3,
+      "current_part_index": 3,
+      "chunks": [
+        {
+          "part_index": 1,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "upiA@paytm",
+          "upi_uri": "upi://pay?pa=upiA@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "approved",
+          "approved_at": "2026-10-13T08:43:14.726Z",
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 2,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "upiB@paytm",
+          "upi_uri": "upi://pay?pa=upiB@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "approved",
+          "approved_at": "2026-10-13T08:43:14.729Z",
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 3,
+          "total_parts": 3,
+          "amount": 502,
+          "upi_id": "upiA@paytm",
+          "upi_uri": "upi://pay?pa=upiA@paytm&am=502&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "approved",
+          "approved_at": "2026-10-13T08:43:14.732Z",
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "splits": [
+        {
+          "part_index": 1,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "upiA@paytm",
+          "upi_uri": "upi://pay?pa=upiA@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "pending",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 2,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "upiB@paytm",
+          "upi_uri": "upi://pay?pa=upiB@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "queued",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 3,
+          "total_parts": 3,
+          "amount": 502,
+          "upi_id": "upiA@paytm",
+          "upi_uri": "upi://pay?pa=upiA@paytm&am=502&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "queued",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "status": "approved",
+      "created_at": "2026-10-13T08:43:14.724Z",
+      "expires_at": "2026-10-13T08:45:14.729Z",
+      "approved_at": "2026-10-13T08:43:14.732Z",
+      "denied_at": null,
+      "approved_amount": 4500
+    },
+    {
+      "id": "txn_1791881012440_r0b5",
+      "merchant_id": "m_demo",
+      "merchant_code": "999999",
+      "user_code": "999999",
+      "merchant_upi_id": "upiA@paytm",
+      "merchant_upi_ids": [
+        "upiA@paytm",
+        "upiB@paytm"
+      ],
+      "merchant_phone": "9999999999",
+      "total_amount": 4500,
+      "split_count": 3,
+      "current_part_index": 3,
+      "chunks": [
+        {
+          "part_index": 1,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "upiA@paytm",
+          "upi_uri": "upi://pay?pa=upiA@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "approved",
+          "approved_at": "2026-10-13T08:43:32.443Z",
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 2,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "upiB@paytm",
+          "upi_uri": "upi://pay?pa=upiB@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "approved",
+          "approved_at": "2026-10-13T08:43:32.446Z",
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 3,
+          "total_parts": 3,
+          "amount": 502,
+          "upi_id": "upiA@paytm",
+          "upi_uri": "upi://pay?pa=upiA@paytm&am=502&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "approved",
+          "approved_at": "2026-10-13T08:43:32.449Z",
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "splits": [
+        {
+          "part_index": 1,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "upiA@paytm",
+          "upi_uri": "upi://pay?pa=upiA@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "pending",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 2,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "upiB@paytm",
+          "upi_uri": "upi://pay?pa=upiB@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "queued",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 3,
+          "total_parts": 3,
+          "amount": 502,
+          "upi_id": "upiA@paytm",
+          "upi_uri": "upi://pay?pa=upiA@paytm&am=502&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "queued",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "status": "approved",
+      "created_at": "2026-10-13T08:43:32.440Z",
+      "expires_at": "2026-10-13T08:45:32.446Z",
+      "approved_at": "2026-10-13T08:43:32.449Z",
+      "denied_at": null,
+      "approved_amount": 4500
+    },
+    {
+      "id": "txn_1791881013074_ufo8",
+      "merchant_id": "m_demo",
+      "merchant_code": "999999",
+      "user_code": "999999",
+      "merchant_upi_id": "store_alpha@paytm",
+      "merchant_upi_ids": [
+        "store_alpha@paytm",
+        "store_beta@paytm"
+      ],
+      "merchant_phone": "9999999999",
+      "total_amount": 3998,
+      "split_count": 2,
+      "current_part_index": 1,
+      "chunks": [
+        {
+          "part_index": 1,
+          "total_parts": 2,
+          "amount": 1999,
+          "upi_id": "store_alpha@paytm",
+          "upi_uri": "upi://pay?pa=store_alpha@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "pending",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 2,
+          "total_parts": 2,
+          "amount": 1999,
+          "upi_id": "store_beta@paytm",
+          "upi_uri": "upi://pay?pa=store_beta@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "queued",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "splits": [
+        {
+          "part_index": 1,
+          "total_parts": 2,
+          "amount": 1999,
+          "upi_id": "store_alpha@paytm",
+          "upi_uri": "upi://pay?pa=store_alpha@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "pending",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 2,
+          "total_parts": 2,
+          "amount": 1999,
+          "upi_id": "store_beta@paytm",
+          "upi_uri": "upi://pay?pa=store_beta@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "queued",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "status": "pending",
+      "created_at": "2026-10-13T08:43:33.074Z",
+      "expires_at": "2026-10-13T08:45:33.074Z",
+      "approved_at": null,
+      "denied_at": null,
+      "approved_amount": 0
+    },
+    {
+      "id": "txn_1791881087779_cw1f",
+      "merchant_id": "m_demo",
+      "merchant_code": "999999",
+      "user_code": "999999",
+      "merchant_upi_id": "upiA@paytm",
+      "merchant_upi_ids": [
+        "upiA@paytm",
+        "upiB@paytm"
+      ],
+      "merchant_phone": "9999999999",
+      "total_amount": 4500,
+      "split_count": 3,
+      "current_part_index": 3,
+      "chunks": [
+        {
+          "part_index": 1,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "upiA@paytm",
+          "upi_uri": "upi://pay?pa=upiA@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "approved",
+          "approved_at": "2026-10-13T08:44:47.783Z",
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 2,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "upiB@paytm",
+          "upi_uri": "upi://pay?pa=upiB@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "approved",
+          "approved_at": "2026-10-13T08:44:47.787Z",
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 3,
+          "total_parts": 3,
+          "amount": 502,
+          "upi_id": "upiA@paytm",
+          "upi_uri": "upi://pay?pa=upiA@paytm&am=502&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "approved",
+          "approved_at": "2026-10-13T08:44:47.790Z",
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "splits": [
+        {
+          "part_index": 1,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "upiA@paytm",
+          "upi_uri": "upi://pay?pa=upiA@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "pending",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 2,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "upiB@paytm",
+          "upi_uri": "upi://pay?pa=upiB@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "queued",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 3,
+          "total_parts": 3,
+          "amount": 502,
+          "upi_id": "upiA@paytm",
+          "upi_uri": "upi://pay?pa=upiA@paytm&am=502&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "queued",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "status": "approved",
+      "created_at": "2026-10-13T08:44:47.779Z",
+      "expires_at": "2026-10-13T08:46:47.787Z",
+      "approved_at": "2026-10-13T08:44:47.790Z",
+      "denied_at": null,
+      "approved_amount": 4500
+    },
+    {
+      "id": "txn_1791881088400_fxhh",
+      "merchant_id": "m_1791881088386_67mew",
+      "merchant_code": "666084",
+      "user_code": "666084",
+      "merchant_upi_id": "store_alpha@paytm",
+      "merchant_upi_ids": [
+        "store_alpha@paytm",
+        "store_beta@paytm"
+      ],
+      "merchant_phone": "9813448528",
+      "total_amount": 3998,
+      "split_count": 2,
+      "current_part_index": 2,
+      "chunks": [
+        {
+          "part_index": 1,
+          "total_parts": 2,
+          "amount": 1999,
+          "upi_id": "store_alpha@paytm",
+          "upi_uri": "upi://pay?pa=store_alpha@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "approved",
+          "approved_at": "2026-10-13T08:44:48.426Z",
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 2,
+          "total_parts": 2,
+          "amount": 1999,
+          "upi_id": "store_beta@paytm",
+          "upi_uri": "upi://pay?pa=store_beta@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "approved",
+          "approved_at": "2026-10-13T08:44:48.450Z",
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "splits": [
+        {
+          "part_index": 1,
+          "total_parts": 2,
+          "amount": 1999,
+          "upi_id": "store_alpha@paytm",
+          "upi_uri": "upi://pay?pa=store_alpha@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "pending",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 2,
+          "total_parts": 2,
+          "amount": 1999,
+          "upi_id": "store_beta@paytm",
+          "upi_uri": "upi://pay?pa=store_beta@paytm&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "queued",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "status": "approved",
+      "created_at": "2026-10-13T08:44:48.400Z",
+      "expires_at": "2026-10-13T08:46:48.426Z",
+      "approved_at": "2026-10-13T08:44:48.450Z",
+      "denied_at": null,
+      "approved_amount": 3998
+    },
+    {
+      "id": "txn_1791881088984_t3j7",
+      "merchant_id": "m_1791881088945_tpsld",
+      "merchant_code": "759177",
+      "user_code": "759177",
+      "merchant_upi_id": "paytm.s1m66cw@pty",
+      "merchant_upi_ids": [
+        "paytm.s1m66cw@pty"
+      ],
+      "merchant_phone": "9892069283",
+      "total_amount": 598,
+      "split_count": 1,
+      "current_part_index": 1,
+      "chunks": [
+        {
+          "part_index": 1,
+          "total_parts": 1,
+          "amount": 598,
+          "upi_id": "paytm.s1m66cw@pty",
+          "upi_uri": "upi://pay?pa=paytm.s1m66cw@pty&am=598&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "pending",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "splits": [
+        {
+          "part_index": 1,
+          "total_parts": 1,
+          "amount": 598,
+          "upi_id": "paytm.s1m66cw@pty",
+          "upi_uri": "upi://pay?pa=paytm.s1m66cw@pty&am=598&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "pending",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "status": "pending",
+      "created_at": "2026-10-13T08:44:48.984Z",
+      "expires_at": "2026-10-13T08:46:48.984Z",
+      "approved_at": null,
+      "denied_at": null,
+      "approved_amount": 0
+    },
+    {
+      "id": "txn_1791881088989_9cke",
+      "merchant_id": "m_1791881088945_tpsld",
+      "merchant_code": "759177",
+      "user_code": "759177",
+      "merchant_upi_id": "paytm.s1m66cw@pty",
+      "merchant_upi_ids": [
+        "paytm.s1m66cw@pty"
+      ],
+      "merchant_phone": "9892069283",
+      "total_amount": 4500,
+      "split_count": 3,
+      "current_part_index": 3,
+      "chunks": [
+        {
+          "part_index": 1,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "paytm.s1m66cw@pty",
+          "upi_uri": "upi://pay?pa=paytm.s1m66cw@pty&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "approved",
+          "approved_at": "2026-10-13T08:44:48.994Z",
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 2,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "paytm.s1m66cw@pty",
+          "upi_uri": "upi://pay?pa=paytm.s1m66cw@pty&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "approved",
+          "approved_at": "2026-10-13T08:44:48.999Z",
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 3,
+          "total_parts": 3,
+          "amount": 502,
+          "upi_id": "paytm.s1m66cw@pty",
+          "upi_uri": "upi://pay?pa=paytm.s1m66cw@pty&am=502&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "approved",
+          "approved_at": "2026-10-13T08:44:49.005Z",
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "splits": [
+        {
+          "part_index": 1,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "paytm.s1m66cw@pty",
+          "upi_uri": "upi://pay?pa=paytm.s1m66cw@pty&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "pending",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 2,
+          "total_parts": 3,
+          "amount": 1999,
+          "upi_id": "paytm.s1m66cw@pty",
+          "upi_uri": "upi://pay?pa=paytm.s1m66cw@pty&am=1999&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "queued",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        },
+        {
+          "part_index": 3,
+          "total_parts": 3,
+          "amount": 502,
+          "upi_id": "paytm.s1m66cw@pty",
+          "upi_uri": "upi://pay?pa=paytm.s1m66cw@pty&am=502&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "queued",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "status": "approved",
+      "created_at": "2026-10-13T08:44:48.989Z",
+      "expires_at": "2026-10-13T08:46:48.999Z",
+      "approved_at": "2026-10-13T08:44:49.005Z",
+      "denied_at": null,
+      "approved_amount": 4500
+    },
+    {
+      "id": "txn_1791881089012_2zx9",
+      "merchant_id": "m_1791881088945_tpsld",
+      "merchant_code": "759177",
+      "user_code": "759177",
+      "merchant_upi_id": "paytm.s1m66cw@pty",
+      "merchant_upi_ids": [
+        "paytm.s1m66cw@pty"
+      ],
+      "merchant_phone": "9892069283",
+      "total_amount": 100,
+      "split_count": 1,
+      "current_part_index": 1,
+      "chunks": [
+        {
+          "part_index": 1,
+          "total_parts": 1,
+          "amount": 100,
+          "upi_id": "paytm.s1m66cw@pty",
+          "upi_uri": "upi://pay?pa=paytm.s1m66cw@pty&am=100&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "denied",
+          "approved_at": null,
+          "denied_at": "2026-10-13T08:44:49.016Z",
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "splits": [
+        {
+          "part_index": 1,
+          "total_parts": 1,
+          "amount": 100,
+          "upi_id": "paytm.s1m66cw@pty",
+          "upi_uri": "upi://pay?pa=paytm.s1m66cw@pty&am=100&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "pending",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "status": "denied",
+      "created_at": "2026-10-13T08:44:49.012Z",
+      "expires_at": "2026-10-13T08:46:49.012Z",
+      "approved_at": null,
+      "denied_at": "2026-10-13T08:44:49.016Z",
+      "approved_amount": 0
     }
   ],
   "admins": [
@@ -4004,40 +4900,49 @@
   ],
   "terminals": [
     {
-      "code": "515245",
+      "code": "999999",
+      "sessionId": "sess_irc0he0ek_mv6f7rpr",
+      "slotNumber": 1,
+      "slot": 1,
+      "blocked": false,
+      "connectedAt": 1791880216497,
+      "lastSeen": 1791881040020
+    },
+    {
+      "code": "999999",
+      "sessionId": "sess_rvi68qgwc_mv6fa65n",
+      "slotNumber": 2,
+      "slot": 2,
+      "blocked": false,
+      "connectedAt": 1791880895054,
+      "lastSeen": 1791881039559
+    },
+    {
+      "code": "799057",
       "sessionId": "test-session-term-1",
       "slotNumber": 1,
       "slot": 1,
       "blocked": false,
-      "connectedAt": 1791880101656,
-      "lastSeen": 1791880101656
+      "connectedAt": 1791881088263,
+      "lastSeen": 1791881088263
     },
     {
-      "code": "515245",
+      "code": "799057",
       "sessionId": "test-session-term-2",
       "slotNumber": 2,
       "slot": 2,
       "blocked": false,
-      "connectedAt": 1791880101665,
-      "lastSeen": 1791880101665
+      "connectedAt": 1791881088272,
+      "lastSeen": 1791881088272
     },
     {
-      "code": "999999",
+      "code": "666084",
       "sessionId": "test_sess_api",
       "slotNumber": 1,
       "slot": 1,
       "blocked": false,
-      "connectedAt": 1791880101791,
-      "lastSeen": 1791880101816
-    },
-    {
-      "code": "999999",
-      "sessionId": "test_terminal_verify_session",
-      "slotNumber": 2,
-      "slot": 2,
-      "blocked": false,
-      "connectedAt": 1791880137045,
-      "lastSeen": 1791880137095
+      "connectedAt": 1791881088407,
+      "lastSeen": 1791881088432
     }
   ]
 }

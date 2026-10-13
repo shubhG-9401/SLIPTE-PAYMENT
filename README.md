@@ -60,10 +60,11 @@ The system is organized around clean separation of concerns, decoupling business
 ## 2. Folder Structure
 
 ```
-upi-merchant-system/
+SLIPTE-PAYMENT/
 ├── .env                          # Local environment configuration
 ├── .env.example                  # Environment configuration template
-├── package.json                  # Scripts and dependencies
+├── LICENSE                       # MIT License
+├── package.json                  # Scripts and dependencies (express, ws, qrcode, bcryptjs, cors)
 ├── README.md                     # Comprehensive documentation
 ├── server.js                     # Server entry point & startup banner
 ├── db.js                         # Root façade for backward compatibility
@@ -167,10 +168,14 @@ All settings are configured via `.env` (a template is provided in `.env.example`
 
 ### Installation & Launch
 ```bash
-# 1. Install dependencies
+# 1. Clone the repository and enter directory
+git clone https://github.com/<your-username>/SLIPTE-PAYMENT.git
+cd SLIPTE-PAYMENT
+
+# 2. Install dependencies (express, ws, qrcode, bcryptjs, cors - native express.json used)
 npm install
 
-# 2. Launch the local server
+# 3. Launch the local server
 npm start
 ```
 
@@ -258,7 +263,9 @@ All API endpoints return standard JSON responses:
 
 ## 7. WebSocket Event Protocol
 
-WebSockets (`ws://localhost:3000`) provide zero-latency real-time state synchronization:
+WebSockets (`ws://localhost:3000`) provide zero-latency real-time state synchronization with automatic reconnection and live status badges across all portals:
+
+> **Transport Architecture**: Real-time communication relies primarily on WebSockets (`ws://` / `wss://`). All events (connection, pairing, payments, chunk progression, approvals, and denials) push instantaneously through room channels. Client terminals also maintain background HTTP synchronization via `GET /api/user/terminal/:code` as a local heartbeat fallback. (Native `express.json()` is used without external `body-parser`).
 
 | Event Name | Direction | Payload Description |
 |---|---|---|
@@ -312,4 +319,4 @@ npm run test:all
 
 ## 10. License
 
-ISC License. Built for local development and private testing.
+MIT License. Built for local development and private testing. See `LICENSE` file for details.

@@ -12,49 +12,64 @@
 
   <div class="user-terminal-container">
 
-    <!-- TOP HEADER -->
-    <header class="terminal-header">
+    <!-- TOP HEADER WITH WEBSOCKET CONNECTION BADGE -->
+    <header class="terminal-header" role="banner">
       <div class="upi-logo-container">
         <span class="upi-text">UPI</span>
         <span class="unified-text">UNIFIED PAYMENTS INTERFACE</span>
       </div>
-      <div id="connectionStatusBadge" class="status-badge offline">Offline</div>
+      <span id="userConnBadge" class="conn-badge offline" aria-label="Live Connection Status">
+        <span class="dot"></span> Offline, retrying…
+      </span>
     </header>
 
-    <!-- STEP 1: PAIRING CODE INPUT (If not yet connected) -->
+    <!-- DYNAMIC SINGLE VIEW MOUNT CONTAINER (ONLY ONE STATE MOUNTED AT A TIME) -->
+    <div id="userTerminalApp" role="region" aria-live="polite">
+      <!-- Active screen mounted here dynamically -->
+    </div>
+
+  </div>
+
+  <!-- VIEW 1: PAIRING CODE INPUT -->
+  <template id="tmplPairing">
     <div id="pairingBox" class="terminal-card pairing-card">
       <div class="card-icon">🔗</div>
       <h2>Connect to Merchant Terminal</h2>
-      <p class="subtitle">Enter the merchant's 6-digit Unique Code (e.g. 999999) to pair</p>
+      <p class="subtitle">Enter the merchant's 6-digit Assigned Unique Code to pair</p>
 
-      <form id="pairingForm">
-        <div class="code-input-wrapper">
-          <input type="text" id="inputPairingCode" name="code" placeholder="e.g. 999999" maxlength="12" autocomplete="off" required>
+      <form id="pairingForm" novalidate>
+        <div class="form-group" style="text-align: left;">
+          <label for="inputPairingCode" style="font-size: 0.82rem; font-weight: 700; color: #1e3a8a; margin-bottom: 6px; display: block;">Merchant 6-Digit Code</label>
+          <div class="code-input-wrapper">
+            <input type="text" id="inputPairingCode" name="code" placeholder="e.g. 999999" maxlength="12" autocomplete="off" required inputmode="numeric">
+          </div>
         </div>
         <button type="submit" id="connectTerminalBtn" class="btn-upi-primary">Connect Terminal &rarr;</button>
-        <div id="pairingAlert" class="alert hidden"></div>
+        <div id="pairingAlert" class="alert hidden" role="alert"></div>
       </form>
     </div>
+  </template>
 
-    <!-- TERMINAL 3 BLOCKED / WARNING STATE -->
-    <div id="terminalBlockedState" class="terminal-card blocked-card hidden">
+  <!-- VIEW 2: TERMINAL 3 BLOCKED / WARNING STATE -->
+  <template id="tmplBlocked">
+    <div id="terminalBlockedState" class="terminal-card blocked-card">
       <div class="warning-icon-badge">⚠️</div>
       <h2 class="warning-title">ACCESS BLOCKED</h2>
       <div class="warning-subtitle">Terminal 3 Limit Reached</div>
       <div class="warning-box">
         <p class="warning-main-text"><strong>Maximum 2 Terminals Allowed</strong></p>
-        <p class="warning-detail-text">The merchant with code <strong id="blockedMerchantCode">------</strong> already has <strong>2 active terminals</strong> (Terminal 1 &amp; Terminal 2) in use.</p>
+        <p class="warning-detail-text">The merchant with code <strong id="blockedMerchantCode">------</strong> already has <strong>2 active customer terminals</strong> (Terminal 1 &amp; Terminal 2) connected.</p>
         <div class="warning-callout">
-          🚫 <strong>Terminal 3 access is blocked.</strong> Your merchant's system permits a maximum of 2 connected customer terminals concurrently.
+          🚫 <strong>Terminal 3 access is blocked.</strong> Merchant accounts permit a maximum of 2 concurrent paired terminals.
         </div>
       </div>
       <button type="button" id="retryPairingBtn" class="btn-upi-primary" style="margin-top: 18px;">&larr; Try Another Code</button>
     </div>
+  </template>
 
-    <!-- STEP 2: THE "PLAIN LIGHT BLUE WRITTEN UPI BOX" -->
-    <div id="upiBox" class="terminal-card upi-blue-box hidden">
-
-      <!-- UPI Box Header -->
+  <!-- VIEW 3: WAITING FOR MERCHANT TO PUSH AMOUNT -->
+  <template id="tmplWaiting">
+    <div class="terminal-card upi-blue-box">
       <div class="upi-box-header">
         <div class="upi-brand-mark">
           <span class="upi-symbol">▲</span>
@@ -66,91 +81,136 @@
         </div>
       </div>
 
-      <!-- WAITING STATE (Before merchant creates payment) -->
-      <div id="waitingState" class="upi-state-section">
+      <div class="upi-state-section">
         <div class="pulse-ring">
           <div class="pulse-inner">₹</div>
         </div>
         <h3>Ready for Payment</h3>
-        <p>Terminal linked to <strong id="waitingMerchantUpi">merchant@paytm</strong></p>
-        <span class="waiting-subtext">Waiting for merchant to enter amount...</span>
+        <p>Terminal paired with <strong id="waitingMerchantUpi">merchant@paytm</strong></p>
+        <span class="waiting-subtext">Waiting for merchant to push payment request...</span>
       </div>
 
-      <!-- ACTIVE PAYMENT STATE (Merchant entered amount) -->
-      <div id="paymentActiveState" class="upi-state-section hidden">
-        <!-- 2-MINUTE COUNTDOWN TIMER -->
-        <div class="timer-container">
-          <div class="timer-row">
-            <span class="timer-label">Time Remaining to Complete Payment:</span>
-            <span id="timerText" class="timer-digits">02:00</span>
-          </div>
-          <div class="timer-progress-bar">
-            <div id="timerProgressFill" class="timer-fill"></div>
+      <div class="upi-box-footer">
+        <span class="safe-badge">🔒 256-Bit Bank-Grade UPI Security</span>
+      </div>
+    </div>
+  </template>
+
+  <!-- VIEW 4: ACTIVE PAYMENT WITH TIMER RING, SPLIT STEP INDICATOR & DEEP LINK -->
+  <template id="tmplActivePayment">
+    <div class="terminal-card upi-blue-box">
+      <div class="upi-box-header">
+        <div class="upi-brand-mark">
+          <span class="upi-symbol">▲</span>
+          <span class="upi-brand-name">UPI Pay</span>
+        </div>
+        <div class="merchant-connected-tag">
+          <span class="dot live"></span>
+          <span id="activeMerchantTag">Merchant Live</span>
+        </div>
+      </div>
+
+      <div class="upi-state-section">
+        <!-- Circular Countdown Timer Ring -->
+        <div class="timer-ring-container" title="120-Second Payment Expiration Window">
+          <svg class="timer-ring-svg" viewBox="0 0 100 100">
+            <circle class="timer-ring-bg" cx="50" cy="50" r="42"></circle>
+            <circle id="userTimerRingCircle" class="timer-ring-progress" cx="50" cy="50" r="42"></circle>
+          </svg>
+          <div class="timer-ring-center">
+            <span id="userTimerDigits" class="timer-ring-digits" aria-live="polite">02:00</span>
+            <span class="timer-ring-label">Time Left</span>
           </div>
         </div>
 
-        <!-- TOTAL AMOUNT DISPLAY -->
+        <!-- Sequential Split Steps Indicator (e.g. Part 2 of 3) -->
+        <div id="splitStepsBox" class="split-steps-wrapper hidden">
+          <span id="splitStepBadge" class="split-step-badge">Part 1 of 1</span>
+          <div id="splitProgressDots" class="split-progress-dots"></div>
+        </div>
+
+        <!-- Total Bill Amount -->
         <div class="amount-billboard">
           <span class="currency-symbol">₹</span>
           <span id="displayTotalAmount" class="billboard-amount">0.00</span>
           <span id="splitNoticeBadge" class="split-notice-badge hidden">Auto-Split (≤ ₹1999)</span>
         </div>
 
-        <!-- SPLIT PARTS NAVIGATION (Only if amount > 1999) -->
-        <div id="splitPartsNav" class="split-parts-nav hidden">
-          <span class="nav-hint">Payment split into parts for UPI limit compliance:</span>
-          <div id="splitButtonsContainer" class="split-buttons-row"></div>
-        </div>
-
-        <!-- DYNAMIC QR CODE CONTAINER -->
+        <!-- QR Code Presentation & Beside/Mobile Quick Pay Button -->
         <div class="qr-presentation-card">
-          <div class="qr-frame">
+          <div id="userQrFrame" class="qr-frame">
             <img id="qrImage" src="" alt="Dynamic UPI QR Code" class="qr-code-img">
             <div id="qrLoading" class="qr-loading">Generating Dynamic QR...</div>
+            <div id="qrExpiredOverlay" class="qr-expired-overlay hidden" role="alert">
+              <span class="qr-expired-icon">⏱</span>
+              <span class="qr-expired-title">QR CODE EXPIRED</span>
+              <span class="qr-expired-desc">120s payment window elapsed</span>
+            </div>
           </div>
 
           <div class="qr-meta">
             <span class="meta-amount" id="currentPartAmount">₹0.00</span>
             <div class="meta-upi-route" id="currentPartRoute">
-              <span class="route-icon">➔</span> Paying to UPI: <strong id="currentPartUpi">paytm.s1m66cw@pty</strong>
+              <span class="route-icon">➔</span> Paying to: <strong id="currentPartUpi">paytm.s1m66cw@pty</strong>
             </div>
             <span class="meta-desc">Scan with Paytm, GPay, PhonePe or any UPI app</span>
           </div>
 
-          <!-- Quick Pay Actions on Mobile -->
+          <!-- Deep Link & Copy URI Actions (Beside QR) -->
           <div class="upi-actions-row" style="margin-top: 14px;">
-            <a id="upiIntentBtn" href="#" class="btn-upi-intent">⚡ Open in UPI App</a>
-            <button type="button" id="copyUpiUriBtn" class="btn-upi-copy">📋 Copy Link</button>
+            <a id="upiIntentBtn" href="#" class="btn-upi-intent" title="Open directly in installed UPI app">
+              ⚡ Pay with UPI App
+            </a>
+            <button type="button" id="copyUpiUriBtn" class="btn-upi-copy" title="Copy raw upi:// link">
+              📋 Copy Link
+            </button>
           </div>
 
-          <!-- Confirmation / Have Paid Section -->
-          <div class="confirmation-section">
-            <p class="confirm-hint">Paid via UPI App? Enter reference/UTR number or confirm directly:</p>
+          <!-- Exactly 12-Digit UTR Validation & Submission -->
+          <div class="confirmation-section" style="margin-top: 12px; text-align: left;">
+            <label for="inputUtr" class="confirm-hint" style="display: block; font-weight: 700; margin-bottom: 4px;">
+              Paid via UPI App? Enter 12-digit UTR / Ref Number:
+            </label>
             <div class="utr-input-group">
-              <input type="text" id="inputUtr" placeholder="Enter 12-digit UTR number (Optional)" maxlength="24">
+              <input type="text" id="inputUtr" maxlength="12" pattern="\d{12}" inputmode="numeric" placeholder="Enter exactly 12-digit UTR (Optional)" autocomplete="off">
             </div>
-            <button type="button" id="markPaidBtn" class="btn-have-paid">✓ I Have Paid (Notify Merchant)</button>
+            <div id="utrErrorMsg" class="inline-error hidden" role="alert">⚠️ UTR must be exactly 12 numeric digits (e.g. 123456789012)</div>
+            <button type="button" id="markPaidBtn" class="btn-have-paid" style="margin-top: 8px;">✓ I Have Paid (Notify Merchant)</button>
           </div>
         </div>
-
       </div>
 
-      <!-- PAYMENT SUBMITTED / VERIFYING STATE -->
-      <div id="paymentSubmittedState" class="upi-state-section hidden">
+      <div class="upi-box-footer">
+        <span class="safe-badge">🔒 256-Bit Bank-Grade UPI Security</span>
+      </div>
+    </div>
+  </template>
+
+  <!-- VIEW 5: PAYMENT SUBMITTED / VERIFYING -->
+  <template id="tmplSubmitted">
+    <div class="terminal-card upi-blue-box">
+      <div class="upi-state-section">
         <div class="waiting-spinner"></div>
         <h3>Payment Submitted!</h3>
-        <p class="submitted-msg">Your payment has been sent to the merchant for live approval.</p>
-        <div class="alert-info-box">
-          Please wait while the merchant checks their Paytm app and confirms.
+        <p class="submitted-msg">Your payment confirmation has been sent to the merchant for live approval.</p>
+        <div class="alert-info-box" style="margin-top: 16px;">
+          Please wait while the merchant checks their Paytm app and confirms receipt.
         </div>
       </div>
+      <div class="upi-box-footer">
+        <span class="safe-badge">🔒 256-Bit Bank-Grade UPI Security</span>
+      </div>
+    </div>
+  </template>
 
-      <!-- PAYMENT APPROVED STATE (Celebration) -->
-      <div id="paymentApprovedState" class="upi-state-section hidden">
+  <!-- VIEW 6: PAYMENT APPROVED CELEBRATION -->
+  <template id="tmplApproved">
+    <div class="terminal-card upi-blue-box">
+      <div class="upi-state-section">
         <div class="success-icon-badge">✓</div>
         <h2 class="success-title">Payment Approved!</h2>
         <p class="success-subtitle">The merchant has verified and accepted your payment.</p>
-        <div class="receipt-box">
+        <div class="receipt-box" style="margin-top: 18px;">
           <div class="receipt-row">
             <span>Amount Paid:</span>
             <strong id="receiptAmount">₹0.00</strong>
@@ -160,42 +220,53 @@
             <span class="status-tag live">VERIFIED &amp; APPROVED</span>
           </div>
         </div>
-        <button id="resetTerminalBtn" class="btn-upi-primary" style="margin-top: 20px;">Ready for Next Payment &rarr;</button>
+        <button type="button" id="resetTerminalBtn" class="btn-upi-primary" style="margin-top: 20px;">Ready for Next Payment &rarr;</button>
       </div>
-
-      <!-- PAYMENT DENIED STATE -->
-      <div id="paymentDeniedState" class="upi-state-section hidden">
-        <div class="denied-icon-badge">✕</div>
-        <h2 class="denied-title">Payment Denied</h2>
-        <p class="denied-subtitle">The merchant could not verify this transaction.</p>
-        <div class="alert-denied-box">
-          If money was debited from your account, it will be automatically refunded by your bank within 24-48 hours.
-        </div>
-        <button id="retryTerminalBtn" class="btn-upi-primary" style="margin-top: 20px;">Back to Terminal</button>
-      </div>
-
-      <!-- PAYMENT EXPIRED STATE -->
-      <div id="paymentExpiredState" class="upi-state-section hidden">
-        <div class="expired-icon-badge">⏱</div>
-        <h2 class="expired-title">Payment Request Expired</h2>
-        <p class="expired-subtitle">The 2-minute payment window has elapsed.</p>
-        <button id="expiredTerminalBtn" class="btn-upi-primary" style="margin-top: 20px;">Return to Terminal</button>
-      </div>
-
-      <!-- Bottom UPI Footer Branding -->
       <div class="upi-box-footer">
         <span class="safe-badge">🔒 256-Bit Bank-Grade UPI Security</span>
       </div>
-
     </div>
+  </template>
 
-  </div>
+  <!-- VIEW 7: PAYMENT DENIED -->
+  <template id="tmplDenied">
+    <div class="terminal-card upi-blue-box">
+      <div class="upi-state-section">
+        <div class="denied-icon-badge">✕</div>
+        <h2 class="denied-title">Payment Denied</h2>
+        <p class="denied-subtitle">The merchant could not verify this transaction.</p>
+        <div class="alert-denied-box" style="margin-top: 18px;">
+          If funds were debited from your account, they will be automatically refunded by your bank within 24-48 hours.
+        </div>
+        <button type="button" id="retryTerminalBtn" class="btn-upi-primary" style="margin-top: 20px;">Back to Terminal</button>
+      </div>
+      <div class="upi-box-footer">
+        <span class="safe-badge">🔒 256-Bit Bank-Grade UPI Security</span>
+      </div>
+    </div>
+  </template>
+
+  <!-- VIEW 8: PAYMENT EXPIRED -->
+  <template id="tmplExpired">
+    <div class="terminal-card upi-blue-box">
+      <div class="upi-state-section">
+        <div class="expired-icon-badge">⏱</div>
+        <h2 class="expired-title">Payment Request Expired</h2>
+        <p class="expired-subtitle">The 2-minute payment window has elapsed.</p>
+        <button type="button" id="expiredTerminalBtn" class="btn-upi-primary" style="margin-top: 20px;">Return to Terminal</button>
+      </div>
+      <div class="upi-box-footer">
+        <span class="safe-badge">🔒 256-Bit Bank-Grade UPI Security</span>
+      </div>
+    </div>
+  </template>
 
   <!-- Modular Reusable Components & Reactive State Architecture -->
   <script src="/js/shared/store.js"></script>
   <script src="/js/shared/api.js"></script>
   <script src="/js/shared/sound.js"></script>
   <script src="/js/shared/utils.js"></script>
+  <script src="/js/shared/uiComponents.js"></script>
   <script src="/js/user/userState.js"></script>
   <script src="/js/user/userApp.js"></script>
 </body>

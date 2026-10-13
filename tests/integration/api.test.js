@@ -54,11 +54,18 @@ function getJson(path) {
 async function runApiTests() {
   console.log('--- Testing Multi-UPI HTTP API Endpoints ---');
 
-  // 1. Get demo merchant
-  const demoRes = await getJson('/api/merchant/demo');
-  assert.strictEqual(demoRes.status, 200);
-  const merchant = demoRes.data.merchant;
-  console.log('Demo merchant retrieved:', merchant.phone, 'Code:', merchant.merchant_code);
+  // 1. Register a dedicated test merchant to ensure isolated slot state
+  const randomPhone = '9' + Math.floor(100000000 + Math.random() * 900000000);
+  const regRes = await postJson('/api/merchant/register', {
+    phone: randomPhone,
+    password: 'testpassword123',
+    provider: 'paytm',
+    upi_id: `${randomPhone}@paytm`,
+    fee_paid: true
+  });
+  assert.strictEqual(regRes.status, 200);
+  const merchant = regRes.data.merchant;
+  console.log('Dedicated test merchant registered:', merchant.phone, 'Code:', merchant.merchant_code);
 
   // 2. Update UPI IDs via API
   const upiIds = ['shop1@paytm', 'shop2@paytm', 'shop3@paytm'];

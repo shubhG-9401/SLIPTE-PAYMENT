@@ -11,12 +11,16 @@
 <body>
 
   <!-- Navigation Bar -->
-  <nav class="navbar">
+  <nav class="navbar" role="navigation" aria-label="Main Navigation">
     <div class="nav-container">
       <div class="brand">
         <span class="portal-name">Merchant Hub</span>
       </div>
       <div class="nav-right-group">
+        <!-- Live Auto-Reconnecting WebSocket Status Badge -->
+        <span id="wsConnBadge" class="conn-badge offline" aria-label="Connection Status">
+          <span class="dot"></span> Offline, retrying…
+        </span>
         <button id="tryDemoNavBtn" class="btn btn-warning btn-demo-top">⚡ Try Demo</button>
         <div id="navUserSection" class="nav-user-section hidden">
           <span class="merchant-badge"><span class="dot live"></span> <span id="navMerchantPhone">Merchant</span></span>
@@ -26,16 +30,21 @@
     </div>
   </nav>
 
-  <main class="main-content">
-    <!-- AUTH SECTION (Login & Registration) -->
+  <!-- DYNAMIC SINGLE VIEW MOUNT CONTAINER -->
+  <main id="mainAppContainer" class="main-content" role="main">
+    <!-- Only one view (Auth OR Dashboard) is mounted here at any given time -->
+  </main>
+
+  <!-- TEMPLATE 1: AUTHENTICATION VIEW -->
+  <template id="authViewTemplate">
     <div id="authSection" class="auth-wrapper">
 
-      <!-- PROMINENT INSTANT DEMO SANDBOX BANNER -->
-      <div class="try-demo-card">
+      <!-- DEMO SANDBOX BANNER (Controlled by DEMO_MODE env) -->
+      <div id="demoSandboxBanner" class="try-demo-card">
         <div class="try-demo-content">
           <div class="demo-tag">🧪 INSTANT SANDBOX TEST MODE</div>
           <h3>Test the Merchant Platform Instantly</h3>
-          <p>Skip authentication to test the Merchant Dashboard with Unique Code <strong>MC-99</strong> for live terminal pairing, dynamic QR generation, and auto-splitting amounts &gt; ₹1999.</p>
+          <p>Skip registration to test live terminal pairing with 6-digit Unique Code <strong>999999</strong>, dynamic QR generation, and auto-splitting amounts &gt; ₹1999.</p>
         </div>
         <button id="tryDemoBtn" type="button" class="btn btn-warning btn-lg btn-demo-action">
           ⚡ Launch Demo Dashboard &rarr;
@@ -47,9 +56,9 @@
           <div class="auth-icon">💼</div>
           <h2>Merchant Portal Access</h2>
           <p>Sign in or register your verified Paytm merchant account</p>
-          <div class="auth-tabs">
-            <button type="button" id="tabLogin" class="tab-btn active">Sign In</button>
-            <button type="button" id="tabRegister" class="tab-btn">Create Account</button>
+          <div class="auth-tabs" role="tablist">
+            <button type="button" id="tabLogin" class="tab-btn active" role="tab" aria-selected="true">Sign In</button>
+            <button type="button" id="tabRegister" class="tab-btn" role="tab" aria-selected="false">Create Account</button>
           </div>
         </div>
 
@@ -68,7 +77,7 @@
             <input type="password" id="loginPassword" placeholder="Enter password" required autocomplete="current-password">
           </div>
 
-          <div class="demo-autofill-box">
+          <div id="demoAutofillBox" class="demo-autofill-box">
             <button type="button" id="fillDemoCredsBtn" class="btn-demo-autofill">
               ⚡ Fill Demo Login (9999999999 / demo123)
             </button>
@@ -77,7 +86,7 @@
           <button type="submit" id="loginSubmitBtn" class="btn btn-primary btn-block">
             Sign In to Dashboard &rarr;
           </button>
-          <div id="loginAlert" class="alert hidden"></div>
+          <div id="loginAlert" class="alert hidden" role="alert"></div>
         </form>
 
         <!-- REGISTRATION FORM -->
@@ -105,7 +114,7 @@
           <div class="form-group">
             <label for="regUpi">Merchant Destination UPI ID</label>
             <input type="text" id="regUpi" placeholder="e.g. paytm.s1m66cw@pty or yourname@paytm">
-            <small class="field-hint">All dynamic QR payments route directly to this UPI address (e.g. <code>paytm.s1m66cw@pty</code>)</small>
+            <small class="field-hint">All dynamic QR payments route directly to this UPI address</small>
           </div>
 
           <div class="form-group">
@@ -116,13 +125,15 @@
           <button type="button" id="regSubmitBtn" class="btn btn-primary btn-block">
             ✨ Complete Free Registration &amp; Activate &rarr;
           </button>
-          <div id="regAlert" class="alert hidden"></div>
+          <div id="regAlert" class="alert hidden" role="alert"></div>
         </div>
       </div>
     </div>
+  </template>
 
-    <!-- DASHBOARD SECTION -->
-    <div id="dashboardSection" class="dashboard-wrapper hidden">
+  <!-- TEMPLATE 2: DASHBOARD VIEW -->
+  <template id="dashboardViewTemplate">
+    <div id="dashboardSection" class="dashboard-wrapper">
       <!-- Merchant Overview Bar -->
       <div class="overview-header">
         <div class="merchant-info-card">
@@ -141,12 +152,12 @@
         </div>
       </div>
 
-      <!-- MERCHANT TERMINAL LINKAGE & CONNECTED USERS (FULL WIDTH) -->
+      <!-- FULL WIDTH CARD: MERCHANT TERMINAL LINKAGE & CONNECTED USERS (100% WIDTH) -->
       <div class="dashboard-card user-slots-card full-width-card">
         <div class="card-title-row">
           <div>
             <h3>Merchant Terminal Linkage &amp; Connected Users</h3>
-            <p class="card-subtitle">Share your Unique Code with customers. Max 2 distinct users can pair concurrently.</p>
+            <p class="card-subtitle">Share your 6-digit Unique Code with customers. Max 2 distinct users can pair concurrently.</p>
           </div>
           <div class="slots-kpi-badge">
             <span class="kpi-tag">Active Users</span>
@@ -186,23 +197,23 @@
               </div>
             </div>
           </div>
+
           <!-- Terminal 3 Warning Sign Banner -->
-          <div id="terminal3WarningBanner" class="terminal-warning-alert hidden">
+          <div id="terminal3WarningBanner" class="terminal-warning-alert hidden" role="alert">
             <span class="alert-icon">⚠️</span>
             <div class="warning-text-group">
               <strong>ACCESS BLOCKED — Terminal 3 Restricted:</strong>
               <span>Your merchant account permits a maximum of 2 active customer terminals (Terminal 1 &amp; Terminal 2). Terminal 3 connection attempts are blocked.</span>
             </div>
-            <button type="button" class="close-alert-btn" id="closeWarningBtn" title="Dismiss">&times;</button>
+            <button type="button" class="close-alert-btn" id="closeWarningBtn" title="Dismiss" aria-label="Dismiss">&times;</button>
           </div>
         </div>
       </div>
 
-      <!-- PAYMENT REQUEST INITIATOR & PENDING APPROVALS QUEUE -->
+      <!-- 2-COLUMN GRID: PAYMENT CREATION & PENDING APPROVALS QUEUE -->
       <div class="dashboard-grid">
         <!-- Left Column: Transaction Amount Entry & Auto-Splitting -->
         <div class="dashboard-col">
-          <!-- Collect Payment Form -->
           <div class="dashboard-card payment-request-card">
             <div class="card-title-row">
               <h3>Transaction Amount Entry &amp; Auto-Splitting</h3>
@@ -225,11 +236,11 @@
               <!-- Dynamic Destination UPI IDs Container -->
               <div class="form-group" id="upiInputsGroup">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                  <label style="margin-bottom: 0;">Merchant Destination UPI ID(s)</label>
+                  <label for="destUpi_1" style="margin-bottom: 0;">Merchant Destination UPI ID(s)</label>
                   <button type="button" id="saveUpiBtn" class="btn btn-outline btn-sm" style="white-space: nowrap; padding: 4px 10px; font-size: 0.78rem;">💾 Save UPI IDs</button>
                 </div>
                 <div id="dynamicUpiInputs" class="dynamic-upi-container">
-                  <!-- Injected dynamically by merchant.js according to upiCountSelect -->
+                  <!-- Injected dynamically -->
                 </div>
                 <small class="field-hint">Dynamic QR codes will sequentially route split payment payloads across these UPI IDs.</small>
               </div>
@@ -262,7 +273,17 @@
           <div class="dashboard-card active-payment-card" id="activePaymentCard">
             <div class="card-title-row">
               <h3>Pending Approvals Queue</h3>
-              <span id="activeTimerBadge" class="timer-badge hidden">⏱ 02:00</span>
+              <!-- Circular SVG Countdown Timer -->
+              <div id="activeTimerRingBox" class="timer-ring-container hidden" title="120s Payment Window">
+                <svg class="timer-ring-svg" viewBox="0 0 100 100">
+                  <circle class="timer-ring-bg" cx="50" cy="50" r="42"></circle>
+                  <circle id="timerRingCircle" class="timer-ring-progress" cx="50" cy="50" r="42"></circle>
+                </svg>
+                <div class="timer-ring-center">
+                  <span id="activeTimerDigits" class="timer-ring-digits" aria-live="polite">02:00</span>
+                  <span class="timer-ring-label">Expires</span>
+                </div>
+              </div>
             </div>
 
             <div id="noActiveTxnMsg" class="empty-state">
@@ -334,63 +355,87 @@
           </div>
         </div>
 
-        <!-- TRANSACTIONS HISTORY TABLE -->
+        <!-- TRANSACTIONS HISTORY TABLE WITH SEARCH, FILTER, PAGINATION & MOBILE CARDS -->
         <div class="table-responsive">
-          <div class="table-header-row">
+          <div class="table-header-row" style="margin-bottom: 12px;">
             <h4>Payment History</h4>
           </div>
-          <table class="data-table">
+
+          <div class="table-toolbar">
+            <div class="table-search-box">
+              <span class="search-icon">🔍</span>
+              <input type="search" id="txnSearchInput" placeholder="Search transactions (ID, slot, code)..." aria-label="Search transactions">
+            </div>
+            <select id="txnStatusFilter" class="table-filter-select" aria-label="Filter transactions by status">
+              <option value="all">All Statuses</option>
+              <option value="approved">Approved</option>
+              <option value="pending">Pending</option>
+              <option value="submitted">Submitted</option>
+              <option value="denied">Denied</option>
+            </select>
+          </div>
+
+          <table class="data-table responsive-card-table">
             <thead>
               <tr>
                 <th>TXN ID</th>
-                <th>Time</th>
-                <th>Customer Slot</th>
                 <th>Amount</th>
                 <th>Splits</th>
+                <th>Customer Slot</th>
                 <th>Status</th>
+                <th>Time</th>
               </tr>
             </thead>
             <tbody id="txnTableBody">
-              <tr id="noTxnsRow">
-                <td colspan="6" class="text-center">No transactions recorded yet.</td>
+              <!-- Skeletons shown during initial load -->
+              <tr class="skeleton-row">
+                <td colspan="6" style="padding: 16px;"><span class="skeleton-bar"></span></td>
               </tr>
             </tbody>
           </table>
-        </div>
-      </div>
 
-    </div>
-
-    <!-- Phone Connection Modal -->
-    <div id="phoneConnectModal" class="modal-overlay hidden">
-      <div class="modal-card">
-        <div class="modal-header">
-          <h3>📱 Open Terminal on Mobile Phone</h3>
-          <button type="button" class="modal-close-btn" id="closePhoneModalBtn">&times;</button>
-        </div>
-        <div class="modal-body">
-          <p class="modal-desc">Scan this QR code with your mobile camera to open the <strong>User Terminal</strong> directly on your phone:</p>
-          <div class="modal-qr-box">
-            <img id="phoneTerminalQrImg" class="phone-qr-img" alt="Phone Terminal QR Code" src="">
-          </div>
-          <div class="modal-url-box">
-            <span class="url-label">Direct URL for Phone Browser:</span>
-            <code id="phoneTerminalUrlText" class="phone-url-text">http://192.168.1.3:3000/user.html?code=999999</code>
-            <button type="button" class="btn btn-sm btn-outline" id="copyPhoneUrlBtn">📋 Copy Link</button>
-          </div>
-          <div class="modal-hint-box">
-            <span>📶 <strong>Wi-Fi Requirement:</strong> Your phone must be connected to the same Wi-Fi network as this PC.</span>
+          <div class="table-pagination">
+            <span id="txnPageInfo">Page 1 of 1</span>
+            <div class="pagination-controls">
+              <button type="button" id="txnPrevPage" class="pagination-btn" disabled>&larr; Previous</button>
+              <button type="button" id="txnNextPage" class="pagination-btn" disabled>Next &rarr;</button>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </main>
+  </template>
+
+  <!-- Phone Connection Modal -->
+  <div id="phoneConnectModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="phoneModalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="phoneModalTitle">📱 Open Terminal on Mobile Phone</h3>
+        <button type="button" class="modal-close-btn" id="closePhoneModalBtn" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Scan this QR code with your mobile camera to open the <strong>User Terminal</strong> directly on your phone:</p>
+        <div class="modal-qr-box">
+          <img id="phoneTerminalQrImg" class="phone-qr-img" alt="Direct QR code to open customer terminal on mobile phone" src="">
+        </div>
+        <div class="modal-url-box">
+          <span class="url-label">Direct URL for Phone Browser:</span>
+          <code id="phoneTerminalUrlText" class="phone-url-text">http://192.168.1.3:3000/user.html?code=999999</code>
+          <button type="button" class="btn btn-sm btn-outline" id="copyPhoneUrlBtn">📋 Copy Link</button>
+        </div>
+        <div class="modal-hint-box">
+          <span>📶 <strong>Wi-Fi Requirement:</strong> Your phone must be connected to the same Wi-Fi network as this PC.</span>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Modular Reusable Components & Reactive State Architecture -->
   <script src="/js/shared/store.js"></script>
   <script src="/js/shared/api.js"></script>
   <script src="/js/shared/sound.js"></script>
   <script src="/js/shared/utils.js"></script>
+  <script src="/js/shared/uiComponents.js"></script>
   <script src="/js/merchant/merchantState.js"></script>
   <script src="/js/merchant/merchantApp.js"></script>
 </body>

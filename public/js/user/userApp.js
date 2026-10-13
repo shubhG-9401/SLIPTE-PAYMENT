@@ -1,111 +1,390 @@
 /**
  * @file userApp.js
- * @description Customer Terminal application controller, QR presentation, countdown timer, and polling synchronization.
+ * @description Customer UPI Terminal application controller featuring dynamic single-view mounting,
+ * circular SVG countdown timer, live WebSocket badge, 12-digit UTR validation, and split payment step dots.
  */
 
 (function (window, document) {
   'use strict';
 
-  const { userStore, apiClient, soundManager, appUtils } = window;
+  const { userStore, apiClient, soundManager, appUtils, uiComponents } = window;
 
-  let ws = null;
-  let timerInterval = null;
+  let wsManager = null;
+  let timerRing = null;
   let pollInterval = null;
-  let sessionId = sessionStorage.getItem('slipte_user_sess');
+  let lastProcessedTxnKey = null;
 
+  // Persistent session identifier for slot allocation
+  let sessionId = sessionStorage.getItem('slipte_user_sess');
   if (!sessionId) {
     sessionId = 'sess_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now().toString(36);
     sessionStorage.setItem('slipte_user_sess', sessionId);
   }
 
-  // DOM Elements
-  const codeDigits = document.getElementById('inputPairingCode') || document.getElementById('codeDigits');
-  const connectTerminalBtn = document.getElementById('connectTerminalBtn');
-  const pairingForm = document.getElementById('pairingForm');
-  const pairingAlert = document.getElementById('pairingAlert');
-  const pairingBox = document.getElementById('pairingBox');
-  const upiBox = document.getElementById('upiBox');
-  const terminalBlockedState = document.getElementById('terminalBlockedState');
-  const blockedMerchantCode = document.getElementById('blockedMerchantCode');
-  const connectionStatusBadge = document.getElementById('connectionStatusBadge');
-  const merchantInfoText = document.getElementById('merchantInfoText');
-  const waitingMerchantUpi = document.getElementById('waitingMerchantUpi');
+  // Root Containers & Header Elements
+  const userTerminalApp = document.getElementById('userTerminalApp');
+  const userConnBadge = document.getElementById('userConnBadge');
 
-  // UI States
-  const waitingState = document.getElementById('waitingState');
-  const paymentActiveState = document.getElementById('paymentActiveState');
-  const paymentSubmittedState = document.getElementById('paymentSubmittedState');
-  const paymentApprovedState = document.getElementById('paymentApprovedState');
-  const paymentDeniedState = document.getElementById('paymentDeniedState');
-  const paymentExpiredState = document.getElementById('paymentExpiredState');
-
-  // Active Payment Screen Elements
-  const timerText = document.getElementById('timerText');
-  const timerProgressFill = document.getElementById('timerProgressFill');
-  const displayTotalAmount = document.getElementById('displayTotalAmount');
-  const splitNoticeBadge = document.getElementById('splitNoticeBadge');
-  const qrImage = document.getElementById('qrImage');
-  const qrLoading = document.getElementById('qrLoading');
-  const currentPartAmount = document.getElementById('currentPartAmount');
-  const currentPartRoute = document.getElementById('currentPartRoute');
-  const currentPartUpi = document.getElementById('currentPartUpi');
-  const upiIntentBtn = document.getElementById('upiIntentBtn');
-  const copyUpiUriBtn = document.getElementById('copyUpiUriBtn');
-  const inputUtr = document.getElementById('inputUtr');
-  const markPaidBtn = document.getElementById('markPaidBtn');
-  const receiptAmount = document.getElementById('receiptAmount');
-  const resetTerminalBtn = document.getElementById('resetTerminalBtn');
-  const retryTerminalBtn = document.getElementById('retryTerminalBtn');
-  const expiredTerminalBtn = document.getElementById('expiredTerminalBtn') || document.getElementById('expiredRetryBtn');
-  const retryPairingBtn = document.getElementById('retryPairingBtn') || document.getElementById('blockedRetryBtn');
+  // View Templates
+  const templates = {
+    pairing: document.getElementById('tmplPairing'),
+    blocked: document.getElementById('tmplBlocked'),
+    waiting: document.getElementById('tmplWaiting'),
+    active: document.getElementById('tmplActivePayment'),
+    submitted: document.getElementById('tmplSubmitted'),
+    approved: document.getElementById('tmplApproved'),
+    denied: document.getElementById('tmplDenied'),
+    expired: document.getElementById('tmplExpired')
+  };
 
   /* ==========================================================================
-     STATE TRANSITIONS
+     VIEW MOUNTING (SHOW ONLY ONE STATE PER SCREEN)
      ========================================================================== */
 
-  function setScreenState(stateName) {
-    userStore.setState({ uiState: stateName });
+  let currentView = null;
 
-    const states = [
-      waitingState, paymentActiveState, paymentSubmittedState,
-      paymentApprovedState, paymentDeniedState, paymentExpiredState
-    ];
-    states.forEach(el => el && el.classList.add('hidden'));
+  function renderScreen(viewName, data = {}) {
+    if (!userTerminalApp) return;
 
-    if (stateName === 'waiting' && waitingState) waitingState.classList.remove('hidden');
-    else if (stateName === 'active' && paymentActiveState) paymentActiveState.classList.remove('hidden');
-    else if (stateName === 'submitted' && paymentSubmittedState) paymentSubmittedState.classList.remove('hidden');
-    else if (stateName === 'approved' && paymentApprovedState) paymentApprovedState.classList.remove('hidden');
-    else if (stateName === 'denied' && paymentDeniedState) paymentDeniedState.classList.remove('hidden');
-    else if (stateName === 'expired' && paymentExpiredState) paymentExpiredState.classList.remove('hidden');
+    if (timerRing) {
+      timerRing.stop();
+      timerRing = null;
+    }
+
+    currentView = viewName;
+    userStore.setState({ uiState: viewName });
+    userTerminalApp.innerHTML = '';
+
+    const tmpl = templates[viewName];
+    if (!tmpl) {
+      console.error(`View template tmpl${viewName} not found.`);
+      return;
+    }
+
+    const clone = tmpl.content.cloneNode(true);
+    userTerminalApp.appendChild(clone);
+
+    // Bind view-specific controls
+    if (viewName === 'pairing') bindPairingView(data);
+    else if (viewName === 'blocked') bindBlockedView(data);
+    else if (viewName === 'waiting') bindWaitingView(data);
+    else if (viewName === 'active') bindActiveView(data);
+    else if (viewName === 'submitted') bindSubmittedView(data);
+    else if (viewName === 'approved') bindApprovedView(data);
+    else if (viewName === 'denied') bindDeniedView(data);
+    else if (viewName === 'expired') bindExpiredView(data);
   }
 
-  function showTerminal3Blocked(code, message) {
-    if (pollInterval) clearInterval(pollInterval);
-    if (ws) { try { ws.close(); } catch (e) {} }
+  /* ==========================================================================
+     VIEW BINDINGS
+     ========================================================================== */
 
-    soundManager.play('alert');
-    if (pairingBox) pairingBox.classList.add('hidden');
-    if (upiBox) upiBox.classList.add('hidden');
-    if (terminalBlockedState) {
-      terminalBlockedState.classList.remove('hidden');
-      if (blockedMerchantCode) blockedMerchantCode.textContent = code || '------';
+  // 1. Pairing View
+  function bindPairingView(data = {}) {
+    const form = document.getElementById('pairingForm');
+    const input = document.getElementById('inputPairingCode');
+    const alertBox = document.getElementById('pairingAlert');
+
+    if (input) {
+      input.value = data.prefillCode || '';
+      input.focus();
     }
-    if (connectionStatusBadge) {
-      connectionStatusBadge.textContent = '⚠️ Terminal 3 Blocked';
-      connectionStatusBadge.className = 'status-badge blocked';
+
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const code = input ? input.value.trim() : '';
+        if (!code) {
+          if (alertBox) {
+            alertBox.textContent = '⚠️ Please enter a 6-digit Assigned Unique Code.';
+            alertBox.className = 'alert error';
+            alertBox.classList.remove('hidden');
+          }
+          if (input) input.focus();
+          return;
+        }
+        connectTerminal(code);
+      });
+    }
+  }
+
+  // 2. Blocked View (Terminal 3 Limit Reached)
+  function bindBlockedView(data = {}) {
+    const codeEl = document.getElementById('blockedMerchantCode');
+    const retryBtn = document.getElementById('retryPairingBtn');
+
+    if (codeEl) codeEl.textContent = data.code || '------';
+
+    if (retryBtn) {
+      retryBtn.addEventListener('click', () => {
+        renderScreen('pairing', { prefillCode: '' });
+      });
+    }
+  }
+
+  // 3. Waiting View
+  function bindWaitingView(data = {}) {
+    const state = userStore.getState();
+    const infoText = document.getElementById('merchantInfoText');
+    const upiText = document.getElementById('waitingMerchantUpi');
+
+    const code = state.currentCode || data.code || '999999';
+    const slot = state.slotNumber || data.slot || 1;
+    const upi = (state.merchantInfo && state.merchantInfo.upi_id) || data.merchantUpi || 'merchant@paytm';
+
+    if (infoText) infoText.textContent = `Merchant Connected (${code}) (Slot ${slot})`;
+    if (upiText) upiText.textContent = upi;
+  }
+
+  // 4. Active Payment View
+  function bindActiveView(data = {}) {
+    const txn = data.transaction || userStore.getState().currentTxn;
+    if (!txn) {
+      renderScreen('waiting');
+      return;
+    }
+
+    const secs = typeof data.remainingSeconds === 'number' ? data.remainingSeconds : 120;
+    const preloadedQr = data.qrDataUrl || null;
+
+    const activeMerchantTag = document.getElementById('activeMerchantTag');
+    const totalAmountEl = document.getElementById('displayTotalAmount');
+    const splitNoticeBadge = document.getElementById('splitNoticeBadge');
+    const splitStepsBox = document.getElementById('splitStepsBox');
+    const splitStepBadge = document.getElementById('splitStepBadge');
+    const splitProgressDots = document.getElementById('splitProgressDots');
+
+    const qrFrame = document.getElementById('userQrFrame');
+    const qrImg = document.getElementById('qrImage');
+    const qrLoading = document.getElementById('qrLoading');
+    const qrExpiredOverlay = document.getElementById('qrExpiredOverlay');
+
+    const currentPartAmount = document.getElementById('currentPartAmount');
+    const currentPartUpi = document.getElementById('currentPartUpi');
+    const upiIntentBtn = document.getElementById('upiIntentBtn');
+    const copyUpiUriBtn = document.getElementById('copyUpiUriBtn');
+
+    const inputUtr = document.getElementById('inputUtr');
+    const utrErrorMsg = document.getElementById('utrErrorMsg');
+    const markPaidBtn = document.getElementById('markPaidBtn');
+
+    const timerRingCircle = document.getElementById('userTimerRingCircle');
+    const timerDigits = document.getElementById('userTimerDigits');
+
+    // Display Merchant Tag
+    const state = userStore.getState();
+    if (activeMerchantTag && state.currentCode) {
+      activeMerchantTag.textContent = `Merchant ${state.currentCode} Live`;
+    }
+
+    // Billboard Total Amount
+    if (totalAmountEl) totalAmountEl.textContent = Number(txn.total_amount).toFixed(2);
+
+    // Current Chunk Details
+    const currentIdx = Math.max(0, (txn.current_part_index || 1) - 1);
+    const chunk = (txn.chunks && txn.chunks[currentIdx]) || {
+      amount: txn.total_amount,
+      upi_id: txn.merchant_upi_id || 'paytm.s1m66cw@pty',
+      upi_uri: appUtils.buildUpiUri(txn.merchant_upi_id, txn.total_amount)
+    };
+
+    // Sequential Split Steps Indicator (e.g. Part 2 of 3)
+    const splitCount = txn.split_count || 1;
+    const currentPartNum = txn.current_part_index || 1;
+
+    if (splitCount > 1) {
+      if (splitNoticeBadge) {
+        splitNoticeBadge.classList.remove('hidden');
+        splitNoticeBadge.textContent = `Auto-Split (≤ ₹1999)`;
+      }
+      if (splitStepsBox) splitStepsBox.classList.remove('hidden');
+      if (splitStepBadge) splitStepBadge.textContent = `Part ${currentPartNum} of ${splitCount}`;
+
+      if (splitProgressDots) {
+        splitProgressDots.innerHTML = '';
+        for (let i = 1; i <= splitCount; i++) {
+          const dot = document.createElement('span');
+          dot.className = 'split-dot';
+          if (i < currentPartNum) dot.classList.add('completed');
+          else if (i === currentPartNum) dot.classList.add('current');
+          dot.setAttribute('title', `Step ${i} of ${splitCount}`);
+          splitProgressDots.appendChild(dot);
+        }
+      }
+    } else {
+      if (splitNoticeBadge) splitNoticeBadge.classList.add('hidden');
+      if (splitStepsBox) splitStepsBox.classList.add('hidden');
+    }
+
+    // Part Amount & Route
+    if (currentPartAmount) currentPartAmount.textContent = `Pay ${appUtils.formatCurrency(chunk.amount)}`;
+    const destinationUpi = chunk.upi_id || txn.merchant_upi_id || 'paytm.s1m66cw@pty';
+    if (currentPartUpi) currentPartUpi.textContent = destinationUpi;
+
+    // UPI Deep Link & Copy
+    const uri = chunk.upi_uri || appUtils.buildUpiUri(destinationUpi, chunk.amount);
+    if (upiIntentBtn) upiIntentBtn.href = uri;
+
+    if (copyUpiUriBtn) {
+      copyUpiUriBtn.addEventListener('click', () => {
+        appUtils.copyToClipboard(uri, copyUpiUriBtn);
+        uiComponents.showToast('UPI payment link copied!', 'info');
+      });
+    }
+
+    // QR Image Presentation with Alt Text
+    if (qrImg) {
+      qrImg.alt = `Scan QR Code to pay ₹${Number(chunk.amount).toFixed(2)} to ${destinationUpi}`;
+    }
+
+    if (preloadedQr) {
+      if (qrImg) qrImg.src = preloadedQr;
+      if (qrLoading) qrLoading.classList.add('hidden');
+    } else {
+      if (qrLoading) qrLoading.classList.remove('hidden');
+      apiClient.get('/api/qr', { text: uri }).then(d => {
+        if (d.dataUrl && qrImg) {
+          qrImg.src = d.dataUrl;
+          if (qrLoading) qrLoading.classList.add('hidden');
+        }
+      }).catch(() => {
+        if (qrLoading) qrLoading.textContent = 'Generating Dynamic QR...';
+      });
+    }
+
+    // Circular SVG Countdown Timer Ring
+    timerRing = uiComponents.createTimerRing({
+      ringCircleEl: timerRingCircle,
+      timerDigitsEl: timerDigits,
+      duration: secs,
+      onExpire: () => {
+        // Dim and disable QR code
+        if (qrFrame) qrFrame.classList.add('expired');
+        if (qrExpiredOverlay) qrExpiredOverlay.classList.remove('hidden');
+        if (markPaidBtn) markPaidBtn.disabled = true;
+        if (upiIntentBtn) upiIntentBtn.classList.add('disabled');
+        uiComponents.showToast('Payment window expired (120s elapsed)', 'error');
+        soundManager.play('alert');
+      }
+    });
+    timerRing.start();
+
+    // 12-Digit UTR Validation
+    function validateUtr(showError = true) {
+      if (!inputUtr) return true;
+      const raw = inputUtr.value.trim();
+      const isValid = /^\d{12}$/.test(raw);
+
+      if (!isValid && showError) {
+        if (utrErrorMsg) {
+          if (raw.length === 0) {
+            utrErrorMsg.textContent = '⚠️ Please enter the 12-digit UTR from your UPI payment app.';
+          } else {
+            utrErrorMsg.textContent = `⚠️ UTR must be exactly 12 numeric digits (currently ${raw.length} digits).`;
+          }
+          utrErrorMsg.classList.remove('hidden');
+        }
+        inputUtr.style.borderColor = '#ef4444';
+      } else {
+        if (utrErrorMsg) utrErrorMsg.classList.add('hidden');
+        inputUtr.style.borderColor = '';
+      }
+      return isValid;
+    }
+
+    if (inputUtr) {
+      // Auto-filter non-digit characters
+      inputUtr.addEventListener('input', () => {
+        inputUtr.value = inputUtr.value.replace(/\D/g, '').slice(0, 12);
+        if (inputUtr.value.length === 12) {
+          validateUtr(false);
+        }
+      });
+      inputUtr.addEventListener('blur', () => {
+        if (inputUtr.value.length > 0) {
+          validateUtr(true);
+        }
+      });
+    }
+
+    // Mark Paid / Submit UTR
+    if (markPaidBtn) {
+      markPaidBtn.addEventListener('click', async () => {
+        if (!validateUtr(true)) {
+          if (inputUtr) inputUtr.focus();
+          return;
+        }
+
+        const utr = inputUtr.value.trim();
+        try {
+          markPaidBtn.disabled = true;
+          markPaidBtn.textContent = 'Submitting...';
+          await apiClient.post('/api/user/submit-payment', { txnId: txn.id, utr });
+          uiComponents.showToast('Payment submitted for merchant approval', 'info');
+          renderScreen('submitted');
+        } catch (err) {
+          markPaidBtn.disabled = false;
+          markPaidBtn.textContent = '✓ I Have Paid (Notify Merchant)';
+          uiComponents.showToast('Submission error: ' + err.message, 'error');
+        }
+      });
+    }
+  }
+
+  // 5. Submitted View
+  function bindSubmittedView() {
+    // Waiting for merchant decision
+  }
+
+  // 6. Approved View
+  function bindApprovedView(data = {}) {
+    const receiptEl = document.getElementById('receiptAmount');
+    const resetBtn = document.getElementById('resetTerminalBtn');
+    const state = userStore.getState();
+
+    const amt = data.amount || (state.currentTxn ? state.currentTxn.total_amount : 0);
+    if (receiptEl) receiptEl.textContent = appUtils.formatCurrency(amt);
+
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        userStore.setState({ currentTxn: null });
+        renderScreen('waiting');
+      });
+    }
+  }
+
+  // 7. Denied View
+  function bindDeniedView() {
+    const retryBtn = document.getElementById('retryTerminalBtn');
+    if (retryBtn) {
+      retryBtn.addEventListener('click', () => {
+        userStore.setState({ currentTxn: null });
+        renderScreen('waiting');
+      });
+    }
+  }
+
+  // 8. Expired View
+  function bindExpiredView() {
+    const expiredBtn = document.getElementById('expiredTerminalBtn');
+    if (expiredBtn) {
+      expiredBtn.addEventListener('click', () => {
+        userStore.setState({ currentTxn: null });
+        renderScreen('waiting');
+      });
     }
   }
 
   /* ==========================================================================
-     PAIRING & TERMINAL CONNECTION
+     PAIRING & BACKEND SYNCHRONIZATION
      ========================================================================== */
 
   async function connectTerminal(code) {
     if (!code) return;
     const cleanCode = code.trim().toUpperCase();
 
-    if (pairingAlert) pairingAlert.classList.add('hidden');
+    const alertBox = document.getElementById('pairingAlert');
+    if (alertBox) alertBox.classList.add('hidden');
 
     try {
       const data = await apiClient.get(`/api/user/terminal/${encodeURIComponent(cleanCode)}`, { sessionId });
@@ -123,148 +402,51 @@
 
       try { localStorage.setItem('slipte_last_code', cleanCode); } catch (e) {}
 
-      onTerminalConnected({
-        code: cleanCode,
-        merchantPhone: data.merchant ? data.merchant.phone : '',
-        merchantUpi: data.merchant ? data.merchant.upi_id : 'merchant@paytm',
-        slot: data.slot
-      });
+      // Tell WebSocket server we paired with this merchant code
+      if (wsManager) {
+        wsManager.send({ type: 'user_init', userCode: cleanCode });
+      }
 
-      // If active payment already pending, display it immediately
       if (data.activePayment) {
         const ap = data.activePayment;
         const txn = ap.transaction || ap;
-        renderActivePayment(txn, ap.remainingSeconds || 120, ap.qrDataUrl);
+        userStore.setState({ currentTxn: txn, remainingSeconds: ap.remainingSeconds || 120 });
+        renderScreen('active', {
+          transaction: txn,
+          remainingSeconds: ap.remainingSeconds || 120,
+          qrDataUrl: ap.qrDataUrl
+        });
+      } else {
+        renderScreen('waiting', {
+          code: cleanCode,
+          slot: data.slot,
+          merchantUpi: data.merchant ? data.merchant.upi_id : 'merchant@paytm'
+        });
       }
 
       startHttpPolling(cleanCode);
-      initWebSocket(cleanCode);
     } catch (err) {
       if (err.terminal3Blocked || (err.data && err.data.terminal3Blocked)) {
         showTerminal3Blocked(cleanCode, err.message);
         return;
       }
-      if (pairingAlert) {
-        pairingAlert.textContent = '❌ ' + (err.message || 'Connection failed');
-        pairingAlert.className = 'alert error';
-        pairingAlert.classList.remove('hidden');
+      if (alertBox) {
+        alertBox.textContent = '❌ ' + (err.message || 'Connection failed');
+        alertBox.className = 'alert error';
+        alertBox.classList.remove('hidden');
       }
     }
   }
 
-  function onTerminalConnected(msg) {
-    const slotText = msg.slot ? ` (Slot ${msg.slot})` : '';
-    if (connectionStatusBadge) {
-      connectionStatusBadge.textContent = `Terminal Live${slotText}`;
-      connectionStatusBadge.className = 'status-badge online';
-    }
-
-    if (pairingBox) pairingBox.classList.add('hidden');
-    if (terminalBlockedState) terminalBlockedState.classList.add('hidden');
-    if (upiBox) upiBox.classList.remove('hidden');
-
-    if (merchantInfoText) merchantInfoText.textContent = `Merchant Connected (${msg.code || '999999'})${slotText}`;
-    if (waitingMerchantUpi && msg.merchantUpi) waitingMerchantUpi.textContent = msg.merchantUpi;
-
-    // Default to waiting state unless active payment already present
-    if (!userStore.getState().currentTxn) {
-      setScreenState('waiting');
-    }
+  function showTerminal3Blocked(code, message) {
+    if (pollInterval) clearInterval(pollInterval);
+    soundManager.play('alert');
+    renderScreen('blocked', { code, message });
   }
 
   /* ==========================================================================
-     ACTIVE PAYMENT & DYNAMIC QR DISPLAY
+     HTTP POLLING BACKUP (LOCAL HEARTBEAT)
      ========================================================================== */
-
-  function renderActivePayment(txn, secs = 120, preloadedQrDataUrl = null) {
-    userStore.setState({ currentTxn: txn, remainingSeconds: secs });
-
-    if (displayTotalAmount) displayTotalAmount.textContent = Number(txn.total_amount).toFixed(2);
-    if (receiptAmount) receiptAmount.textContent = appUtils.formatCurrency(txn.total_amount);
-
-    const currentIdx = (txn.current_part_index || 1) - 1;
-    const currentChunk = (txn.chunks && txn.chunks[currentIdx]) || {
-      amount: txn.total_amount,
-      upi_id: txn.merchant_upi_id || 'paytm.s1m66cw@pty',
-      upi_uri: appUtils.buildUpiUri(txn.merchant_upi_id, txn.total_amount)
-    };
-
-    if (splitNoticeBadge) {
-      if (txn.split_count > 1) {
-        splitNoticeBadge.classList.remove('hidden');
-        splitNoticeBadge.textContent = `Payload ${txn.current_part_index || 1} of ${txn.split_count} (Auto-Split ≤ ₹1999)`;
-      } else {
-        splitNoticeBadge.classList.add('hidden');
-      }
-    }
-
-    if (currentPartAmount) currentPartAmount.textContent = `Pay ${appUtils.formatCurrency(currentChunk.amount)}`;
-    const destinationUpi = currentChunk.upi_id || txn.merchant_upi_id || 'paytm.s1m66cw@pty';
-    if (currentPartUpi) currentPartUpi.textContent = destinationUpi;
-
-    const uri = currentChunk.upi_uri || appUtils.buildUpiUri(destinationUpi, currentChunk.amount);
-    if (upiIntentBtn) upiIntentBtn.href = uri;
-
-    // Reset UTR input for new chunk
-    if (inputUtr) inputUtr.value = '';
-
-    // QR Image Rendering
-    if (preloadedQrDataUrl) {
-      if (qrImage) qrImage.src = preloadedQrDataUrl;
-      if (qrLoading) qrLoading.classList.add('hidden');
-    } else {
-      if (qrLoading) qrLoading.classList.remove('hidden');
-      apiClient.get('/api/qr', { text: uri }).then(d => {
-        if (d.dataUrl && qrImage) {
-          qrImage.src = d.dataUrl;
-          if (qrLoading) qrLoading.classList.add('hidden');
-        }
-      }).catch(() => {
-        if (qrLoading) qrLoading.textContent = 'Generating QR code...';
-      });
-    }
-
-    startTimer(secs);
-    setScreenState('active');
-  }
-
-  function startTimer(duration = 120) {
-    clearInterval(timerInterval);
-    let timeLeft = duration;
-
-    function tick() {
-      const mins = Math.floor(timeLeft / 60);
-      const secs = timeLeft % 60;
-      if (timerText) timerText.textContent = `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
-
-      const pct = Math.max(0, (timeLeft / 120) * 100);
-      if (timerProgressFill) {
-        timerProgressFill.style.width = pct + '%';
-        if (timeLeft <= 30) {
-          timerProgressFill.classList.add('urgent');
-          if (timerText) timerText.classList.add('urgent');
-        } else {
-          timerProgressFill.classList.remove('urgent');
-          if (timerText) timerText.classList.remove('urgent');
-        }
-      }
-
-      if (timeLeft <= 0) {
-        clearInterval(timerInterval);
-        setScreenState('expired');
-      }
-      timeLeft--;
-    }
-
-    tick();
-    timerInterval = setInterval(tick, 1000);
-  }
-
-  /* ==========================================================================
-     HTTP POLLING BACKUP (LOCAL & SERVERLESS HEARTBEAT)
-     ========================================================================== */
-
-  let lastProcessedTxnKey = null;
 
   function startHttpPolling(code) {
     if (pollInterval) clearInterval(pollInterval);
@@ -278,11 +460,6 @@
           return;
         }
 
-        if (data.slot && connectionStatusBadge) {
-          connectionStatusBadge.textContent = `Terminal Live (Slot ${data.slot})`;
-          connectionStatusBadge.className = 'status-badge online';
-        }
-
         if (data.activePayment) {
           const ap = data.activePayment;
           const txn = ap.transaction || ap;
@@ -292,41 +469,46 @@
             lastProcessedTxnKey = stateKey;
 
             if (ap.status === 'submitted') {
-              setScreenState('submitted');
+              if (currentView !== 'submitted') renderScreen('submitted');
             } else if (ap.status === 'pending') {
               if (ap.currentPart > 1) {
                 soundManager.play('chime');
               } else {
                 soundManager.play('alert');
               }
-              renderActivePayment(txn, ap.remainingSeconds || 120, ap.qrDataUrl);
+              userStore.setState({ currentTxn: txn, remainingSeconds: ap.remainingSeconds || 120 });
+              renderScreen('active', {
+                transaction: txn,
+                remainingSeconds: ap.remainingSeconds || 120,
+                qrDataUrl: ap.qrDataUrl
+              });
             }
           }
         } else if (data.lastTransaction) {
           const lt = data.lastTransaction;
           const state = userStore.getState();
-          // ONLY trigger decision if terminal is actively processing this transaction
-          if (state.currentTxn && state.currentTxn.id === lt.id && (state.uiState === 'active' || state.uiState === 'submitted')) {
+          if (state.currentTxn && state.currentTxn.id === lt.id && (currentView === 'active' || currentView === 'submitted')) {
             const stateKey = `${lt.id}_decision_${lt.status}`;
             if (lastProcessedTxnKey !== stateKey) {
               lastProcessedTxnKey = stateKey;
               if (lt.status === 'approved') {
                 soundManager.play('chime');
-                setScreenState('approved');
+                uiComponents.showToast('Payment Verified & Approved!', 'success');
+                renderScreen('approved', { amount: lt.total_amount });
               } else if (lt.status === 'denied') {
                 soundManager.play('alert');
-                setScreenState('denied');
+                uiComponents.showToast('Payment Denied by merchant', 'error');
+                renderScreen('denied');
               }
             }
-          } else if (state.uiState !== 'waiting' && !state.currentTxn) {
-            setScreenState('waiting');
+          } else if (currentView !== 'waiting' && !state.currentTxn) {
+            renderScreen('waiting');
           }
         } else {
-          const currentState = userStore.getState().uiState;
-          if (currentState !== 'waiting') {
+          if (currentView !== 'waiting' && currentView !== 'pairing' && currentView !== 'blocked') {
             userStore.setState({ currentTxn: null });
-            setScreenState('waiting');
             lastProcessedTxnKey = null;
+            renderScreen('waiting');
           }
         }
       } catch (err) {
@@ -344,163 +526,94 @@
      WEBSOCKET REAL-TIME SYNC
      ========================================================================== */
 
-  function initWebSocket(code) {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}`;
-
-    try {
-      ws = new WebSocket(wsUrl);
-
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ type: 'user_init', userCode: code }));
-      };
-
-      ws.onmessage = (event) => {
+  function initWebSocket() {
+    wsManager = uiComponents.setupWebSocketWithBadge({
+      path: '',
+      badgeEl: userConnBadge,
+      onOpen: (ws) => {
+        const code = userStore.getState().currentCode;
+        if (code) {
+          ws.send(JSON.stringify({ type: 'user_init', userCode: code }));
+        }
+      },
+      onMessage: (event) => {
         try {
           const msg = JSON.parse(event.data);
 
           if (msg.type === 'user_ready') {
-            onTerminalConnected(msg);
+            const state = userStore.getState();
+            userStore.setState({
+              currentCode: msg.code,
+              slotNumber: msg.slot || 1,
+              merchantInfo: { upi_id: msg.merchantUpi, phone: msg.merchantPhone }
+            });
+            if (currentView === 'pairing') {
+              renderScreen('waiting', {
+                code: msg.code,
+                slot: msg.slot,
+                merchantUpi: msg.merchantUpi
+              });
+            }
           } else if (msg.type === 'user_error') {
             if (msg.terminal3Blocked) {
-              showTerminal3Blocked(code, msg.message);
+              showTerminal3Blocked(userStore.getState().currentCode, msg.message);
             }
           } else if (msg.type === 'payment_incoming' || msg.type === 'active_payment') {
             soundManager.play('alert');
-            renderActivePayment(msg.transaction, msg.remainingSeconds || 120);
+            userStore.setState({ currentTxn: msg.transaction, remainingSeconds: msg.remainingSeconds || 120 });
+            renderScreen('active', {
+              transaction: msg.transaction,
+              remainingSeconds: msg.remainingSeconds || 120
+            });
           } else if (msg.type === 'chunk_approved_next') {
             soundManager.play('chime');
-            renderActivePayment(msg.transaction, msg.remainingSeconds || 120);
+            uiComponents.showToast('Part approved! Proceeding to next part...', 'success');
+            userStore.setState({ currentTxn: msg.transaction, remainingSeconds: msg.remainingSeconds || 120 });
+            renderScreen('active', {
+              transaction: msg.transaction,
+              remainingSeconds: msg.remainingSeconds || 120
+            });
           } else if (msg.type === 'payment_decision') {
             if (msg.status === 'approved') {
               soundManager.play('chime');
-              setScreenState('approved');
+              uiComponents.showToast('Payment Verified & Approved!', 'success');
+              renderScreen('approved', { amount: msg.transaction ? msg.transaction.total_amount : 0 });
             } else {
               soundManager.play('alert');
-              setScreenState('denied');
+              uiComponents.showToast('Payment Denied by merchant', 'error');
+              renderScreen('denied');
             }
           } else if (msg.type === 'merchant_blocked') {
-            alert('⚠️ ' + msg.message);
-            location.reload();
+            uiComponents.showToast('Merchant terminal has been blocked', 'error');
+            setTimeout(() => location.reload(), 1500);
           }
-        } catch (e) {}
-      };
-
-      ws.onclose = () => {
-        setTimeout(() => {
-          const c = userStore.getState().currentCode;
-          if (c) initWebSocket(c);
-        }, 5000);
-      };
-    } catch (err) {}
+        } catch (e) {
+          console.error('Error processing WS message:', e);
+        }
+      }
+    });
   }
 
   /* ==========================================================================
-     DOM EVENT HANDLERS
+     INITIALIZATION
      ========================================================================== */
 
-  function initDomEvents() {
-    // Form submit listener (handles both Enter key and submit button)
-    if (pairingForm) {
-      pairingForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const code = codeDigits ? codeDigits.value.trim() : '';
-        if (!code) {
-          if (pairingAlert) {
-            pairingAlert.textContent = 'Please enter a 6-digit Assigned Unique Code.';
-            pairingAlert.className = 'alert error';
-            pairingAlert.classList.remove('hidden');
-          }
-          return;
-        }
-        connectTerminal(code);
-      });
-    }
+  function init() {
+    // Start with pairing screen
+    renderScreen('pairing');
 
-    if (connectTerminalBtn && !pairingForm) {
-      connectTerminalBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        const code = codeDigits ? codeDigits.value.trim() : '';
-        if (code) connectTerminal(code);
-      });
-    }
+    // Connect WebSocket
+    initWebSocket();
 
-    if (codeDigits) {
-      codeDigits.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          const code = codeDigits.value.trim();
-          if (code) connectTerminal(code);
-        }
-      });
-    }
-
-    // Copy UPI link button
-    if (copyUpiUriBtn) {
-      copyUpiUriBtn.addEventListener('click', () => {
-        const txn = userStore.getState().currentTxn;
-        if (!txn) return;
-        const currentIdx = (txn.current_part_index || 1) - 1;
-        const chunk = (txn.chunks && txn.chunks[currentIdx]) || {};
-        const uri = chunk.upi_uri || (upiIntentBtn && upiIntentBtn.href);
-        if (uri) {
-          appUtils.copyToClipboard(uri, copyUpiUriBtn);
-        }
-      });
-    }
-
-    // Submit payment verification (Have Paid)
-    if (markPaidBtn) {
-      markPaidBtn.addEventListener('click', async () => {
-        const txn = userStore.getState().currentTxn;
-        if (!txn) return;
-        const utrVal = inputUtr ? inputUtr.value.trim() : '';
-        const utr = utrVal || 'Submitted (Self-Reported)';
-        try {
-          await apiClient.post('/api/user/submit-payment', { txnId: txn.id, utr });
-          setScreenState('submitted');
-        } catch (err) {
-          alert('Submission error: ' + err.message);
-        }
-      });
-    }
-
-    // State reset handlers
-    const resetButtons = [resetTerminalBtn, retryTerminalBtn, expiredTerminalBtn];
-    resetButtons.forEach(btn => {
-      if (btn) {
-        btn.addEventListener('click', () => {
-          userStore.setState({ currentTxn: null });
-          setScreenState('waiting');
-        });
-      }
-    });
-
-    if (retryPairingBtn) {
-      retryPairingBtn.addEventListener('click', () => {
-        if (terminalBlockedState) terminalBlockedState.classList.add('hidden');
-        if (pairingBox) pairingBox.classList.remove('hidden');
-        if (connectionStatusBadge) {
-          connectionStatusBadge.textContent = 'Offline';
-          connectionStatusBadge.className = 'status-badge offline';
-        }
-        if (codeDigits) {
-          codeDigits.value = '';
-          codeDigits.focus();
-        }
-      });
-    }
-
-    // Check URL parameters for direct pairing link: e.g. /user.html?code=999999
+    // Check URL parameters for direct link: e.g. /user.html?code=999999
     const params = new URLSearchParams(window.location.search);
     const urlCode = params.get('code') || params.get('inputPairingCode');
     if (urlCode) {
       const cleanUrlCode = urlCode.trim();
-      if (codeDigits) codeDigits.value = cleanUrlCode;
       setTimeout(() => connectTerminal(cleanUrlCode), 150);
     }
   }
 
-  document.addEventListener('DOMContentLoaded', initDomEvents);
+  document.addEventListener('DOMContentLoaded', init);
 
 })(window, document);
