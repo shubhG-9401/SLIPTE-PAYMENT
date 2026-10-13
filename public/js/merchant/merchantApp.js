@@ -563,12 +563,12 @@
       }
     }
 
-    // Start Circular Timer Ring
-    const ringCircle = document.getElementById('timerRingCircle');
+    // Start Countdown Timer Bar
+    const timerFill = document.getElementById('activeTimerProgressFill');
     const timerDigits = document.getElementById('activeTimerDigits');
 
-    timerRing = uiComponents.createTimerRing({
-      ringCircleEl: ringCircle,
+    timerRing = uiComponents.createTimerBar({
+      fillEl: timerFill,
       timerDigitsEl: timerDigits,
       duration: 120,
       onExpire: () => {

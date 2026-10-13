@@ -162,7 +162,7 @@
     const currentPartAmount = document.getElementById('currentPartAmount');
     const currentPartUpi = document.getElementById('currentPartUpi');
 
-    const timerRingCircle = document.getElementById('userTimerRingCircle');
+    const userTimerProgressFill = document.getElementById('userTimerProgressFill');
     const timerDigits = document.getElementById('userTimerDigits');
 
     // Display Merchant Tag
@@ -238,9 +238,9 @@
       });
     }
 
-    // Circular SVG Countdown Timer Ring
-    timerRing = uiComponents.createTimerRing({
-      ringCircleEl: timerRingCircle,
+    // Countdown Timer Progress Bar
+    timerRing = uiComponents.createTimerBar({
+      fillEl: userTimerProgressFill,
       timerDigitsEl: timerDigits,
       duration: secs,
       onExpire: () => {

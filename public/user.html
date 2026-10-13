@@ -111,15 +111,14 @@
       </div>
 
       <div class="upi-state-section">
-        <!-- Circular Countdown Timer Ring -->
-        <div class="timer-ring-container" title="120-Second Payment Expiration Window">
-          <svg class="timer-ring-svg" viewBox="0 0 100 100">
-            <circle class="timer-ring-bg" cx="50" cy="50" r="42"></circle>
-            <circle id="userTimerRingCircle" class="timer-ring-progress" cx="50" cy="50" r="42"></circle>
-          </svg>
-          <div class="timer-ring-center">
-            <span id="userTimerDigits" class="timer-ring-digits" aria-live="polite">02:00</span>
-            <span class="timer-ring-label">Time Left</span>
+        <!-- 2-Minute Countdown Timer Progress Bar -->
+        <div class="timer-container" title="120-Second Payment Expiration Window">
+          <div class="timer-row">
+            <span class="timer-label">⏱ Payment Window</span>
+            <span id="userTimerDigits" class="timer-digits" aria-live="polite">02:00</span>
+          </div>
+          <div class="timer-progress-bar">
+            <div id="userTimerProgressFill" class="timer-fill"></div>
           </div>
         </div>
 

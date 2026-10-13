@@ -167,6 +167,70 @@
   }
 
   // -------------------------------------------------------------------------
+  // 3b. Horizontal Progress Bar Countdown Timer
+  // -------------------------------------------------------------------------
+  function createTimerBar({ fillEl, timerDigitsEl, duration = 120, onExpire, onTick }) {
+    let timeLeft = duration;
+    let interval = null;
+
+    function render(sec) {
+      const mins = Math.floor(sec / 60);
+      const secs = sec % 60;
+      const formatted = `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+
+      if (timerDigitsEl) {
+        timerDigitsEl.textContent = formatted;
+        if (sec <= 30) {
+          timerDigitsEl.classList.add('urgent');
+        } else {
+          timerDigitsEl.classList.remove('urgent');
+        }
+      }
+
+      if (fillEl) {
+        const pct = Math.max(0, (sec / duration) * 100);
+        fillEl.style.width = `${pct}%`;
+        if (sec <= 30) {
+          fillEl.classList.add('urgent');
+        } else {
+          fillEl.classList.remove('urgent');
+        }
+      }
+    }
+
+    render(timeLeft);
+
+    function start() {
+      clearInterval(interval);
+      interval = setInterval(() => {
+        timeLeft--;
+        if (typeof onTick === 'function') onTick(timeLeft);
+
+        if (timeLeft <= 0) {
+          clearInterval(interval);
+          render(0);
+          if (typeof onExpire === 'function') onExpire();
+        } else {
+          render(timeLeft);
+        }
+      }, 1000);
+    }
+
+    function stop() {
+      clearInterval(interval);
+    }
+
+    function reset(newDuration = duration) {
+      stop();
+      timeLeft = newDuration;
+      render(timeLeft);
+      start();
+    }
+
+    return { start, stop, reset, getTimeLeft: () => timeLeft };
+  }
+
+  // -------------------------------------------------------------------------
   // 4. Auto-Reconnecting WebSocket with Live Connection Badge
   // -------------------------------------------------------------------------
   function setupWebSocketWithBadge({ path = '', onMessage, onOpen, onClose, badgeEl }) {
@@ -361,6 +425,7 @@
     showToast,
     showConfirmDialog,
     createTimerRing,
+    createTimerBar,
     setupWebSocketWithBadge,
     createTableController
   };

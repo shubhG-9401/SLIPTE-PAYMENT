@@ -273,15 +273,14 @@
           <div class="dashboard-card active-payment-card" id="activePaymentCard">
             <div class="card-title-row">
               <h3>Pending Approvals Queue</h3>
-              <!-- Circular SVG Countdown Timer -->
-              <div id="activeTimerRingBox" class="timer-ring-container hidden" title="120s Payment Window">
-                <svg class="timer-ring-svg" viewBox="0 0 100 100">
-                  <circle class="timer-ring-bg" cx="50" cy="50" r="42"></circle>
-                  <circle id="timerRingCircle" class="timer-ring-progress" cx="50" cy="50" r="42"></circle>
-                </svg>
-                <div class="timer-ring-center">
-                  <span id="activeTimerDigits" class="timer-ring-digits" aria-live="polite">02:00</span>
-                  <span class="timer-ring-label">Expires</span>
+              <!-- Countdown Timer Progress Bar -->
+              <div id="activeTimerRingBox" class="timer-container hidden" style="margin-bottom: 0; padding: 6px 14px; min-width: 150px;" title="120s Payment Window">
+                <div class="timer-row" style="margin-bottom: 4px;">
+                  <span class="timer-label" style="font-size: 0.75rem;">⏱ Expires</span>
+                  <span id="activeTimerDigits" class="timer-digits" style="font-size: 0.95rem;" aria-live="polite">02:00</span>
+                </div>
+                <div class="timer-progress-bar" style="height: 5px;">
+                  <div id="activeTimerProgressFill" class="timer-fill"></div>
                 </div>
               </div>
             </div>
