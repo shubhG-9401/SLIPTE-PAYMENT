@@ -3,6 +3,7 @@
  * @description Main application entry point for Localhost UPI Merchant Platform.
  */
 
+const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const express = require('express');
@@ -19,8 +20,27 @@ const networkService = require('./src/services/networkService');
 const app = express();
 const server = http.createServer(app);
 
-// Initialize WebSocket Subsystem
-socketManager.init(server);
+// If running in Vercel Serverless environment, serve the localhost notice page
+if (process.env.VERCEL) {
+  const noticePath = path.join(__dirname, 'localhost-notice.html');
+  let noticeHtml = '<!DOCTYPE html><html><body><h1>Localhost Required</h1><p>Please run this application locally on localhost:3000</p></body></html>';
+  try {
+    if (fs.existsSync(noticePath)) {
+      noticeHtml = fs.readFileSync(noticePath, 'utf8');
+    }
+  } catch (err) {
+    // fallback
+  }
+
+  app.all('*', (req, res) => {
+    res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').send(noticeHtml);
+  });
+}
+
+// Initialize WebSocket Subsystem (Persistent local environment only)
+if (!process.env.VERCEL) {
+  socketManager.init(server);
+}
 
 // Global Middlewares
 app.use(cors());
@@ -49,33 +69,36 @@ app.use('/api/*', (req, res) => {
 // Centralized Error Handling Middleware
 app.use(errorHandler);
 
-// Start HTTP Server
-server.listen(env.PORT, env.HOST, () => {
-  const netInfo = networkService.getLocalIpInfo(env.PORT);
+// Start HTTP Server (Persistent local environment only)
+if (!process.env.VERCEL) {
+  server.listen(env.PORT, env.HOST, () => {
+    const netInfo = networkService.getLocalIpInfo(env.PORT);
 
-  logger.info('===========================================================');
-  logger.info('  UPI MULTI-PORTAL MERCHANT SYSTEM (LOCALHOST ONLY)        ');
-  logger.info('===========================================================');
-  logger.info(`  Environment : ${env.NODE_ENV}`);
-  logger.info(`  Localhost   : http://localhost:${env.PORT}`);
-  logger.info(`  Phone/LAN   : ${netInfo.lanUrl}`);
-  logger.info('-----------------------------------------------------------');
-  logger.info(`  Merchant Hub: http://localhost:${env.PORT}/merchant`);
-  logger.info(`  Customer App: http://localhost:${env.PORT}/user`);
-  logger.info(`  Admin Panel : http://localhost:${env.PORT}/admin`);
-  logger.info('===========================================================');
-});
-
-// Graceful Shutdown
-function handleShutdown(signal) {
-  logger.info(`Received ${signal}. Shutting down server gracefully...`);
-  server.close(() => {
-    logger.info('HTTP & WebSocket server terminated.');
-    process.exit(0);
+    logger.info('===========================================================');
+    logger.info('  UPI MULTI-PORTAL MERCHANT SYSTEM (LOCALHOST ONLY)        ');
+    logger.info('===========================================================');
+    logger.info(`  Environment : ${env.NODE_ENV}`);
+    logger.info(`  Localhost   : http://localhost:${env.PORT}`);
+    logger.info(`  Phone/LAN   : ${netInfo.lanUrl}`);
+    logger.info('-----------------------------------------------------------');
+    logger.info(`  Merchant Hub: http://localhost:${env.PORT}/merchant`);
+    logger.info(`  Customer App: http://localhost:${env.PORT}/user`);
+    logger.info(`  Admin Panel : http://localhost:${env.PORT}/admin`);
+    logger.info('===========================================================');
   });
+
+  // Graceful Shutdown
+  function handleShutdown(signal) {
+    logger.info(`Received ${signal}. Shutting down server gracefully...`);
+    server.close(() => {
+      logger.info('HTTP & WebSocket server terminated.');
+      process.exit(0);
+    });
+  }
+
+  process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+  process.on('SIGINT', () => handleShutdown('SIGINT'));
 }
 
-process.on('SIGTERM', () => handleShutdown('SIGTERM'));
-process.on('SIGINT', () => handleShutdown('SIGINT'));
-
-module.exports = { app, server };
+app.server = server;
+module.exports = app;
