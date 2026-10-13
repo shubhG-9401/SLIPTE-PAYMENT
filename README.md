@@ -1,232 +1,315 @@
-# 💳 Multi-Tier UPI Payment Gateway System (Merchant, User & Admin)
+# UPI Merchant Payment & Gateway Platform (Localhost)
 
-An end-to-end, multi-portal web architecture designed to streamline merchant onboarding, dynamic UPI QR generation, payment splitting, and real-time transaction approvals with administrative oversight.
-
----
-
-## 🌟 Key Features
-
-* **3-Tier Architecture:** Separate, specialized portals for **Admins**, **Merchants**, and **Users**.
-* **Pre-Registration Demo Mode:** Instant sandbox preview for merchants to explore dashboard functionality prior to registration.
-* **Onboarding & Gateway Activation:** Multi-step merchant registration with gateway selection (Paytm Live) and 100% free, immediate gateway activation.
-* **Smart UPI Splitting Engine:** Automatically splits transaction amounts exceeding **₹1,999** into compliant chunks (e.g., ₹4,500 ➔ ₹1,999 + ₹1,999 + ₹502) to prevent transaction limit rejections.
-* **Dynamic UPI QR Generation:** Converts split payloads into standard scannable `upi://pay` URIs formatted with unencoded parameters (`@` and spaces) for direct, zero-error execution across all UPI apps (PhonePe, Google Pay, Paytm, BHIM).
-* **2-Minute Expiration Timer:** Real-time 120-second countdown on user payment QR codes to enforce transaction security and prevent stale requests.
-* **Merchant-User Pairing:** Dynamic connection linking a unique merchant code (e.g., `MC-99`) with up to **2 concurrent active users**.
-* **Manual Verification Controls:** Real-time **Approve / Deny** transaction management for merchants with instant sales statistics updates.
-* **Master Administrative Oversight:** Full admin capabilities to inspect merchant accounts, manage custom credentials, toggle **Active/Blocked** statuses, delete accounts, and purge fake/test data.
+A modular, scalable, full-stack UPI Payment Gateway and Terminal Management system designed for local deployment. Features real-time dynamic QR code generation, automated $\le ₹1999$ payment chunk splitting, multi-account UPI destination routing, concurrent terminal slot pairing (with strict 2-terminal enforcement and Terminal 3 blocking), and centralized platform administration.
 
 ---
 
-## 🏗️ System Architecture & Workflow
-
-### 1. 🏪 Merchant Portal (`merchant.html`)
-- **Demo Sandbox:** Allows non-registered users to test the interface without creating an account using demo code `MC-99`.
-- **Multi-Step Onboarding:**
-  1. Phone number and password setup.
-  2. Gateway selection (**Paytm** LIVE; GPay, PhonePe, and others marked *Coming Soon*).
-  3. Destination UPI ID configuration (direct mapping to merchant bank VPA).
-  4. Instant zero-fee gateway activation.
-- **Amount Dispatch Engine:** Accepts transaction amounts, checks against the ₹1,999 threshold, applies auto-splitting, and dispatches dynamic UPI payloads sequentially to connected users.
-- **Live Dashboard:** Displays total sales analytics, paired user counts, destination UPI settings, and an active queue for manual payment approvals.
-
-### 2. 📱 User Portal (`user.html`)
-- **Light Blue Custom UI:** Modern, clean, high-contrast light-blue input container designed for optimal mobile and desktop responsiveness.
-- **Code Pairing:** Users connect directly to a merchant terminal using the merchant's **Unique Link Code** (e.g., `MC-99`).
-- **Dynamic QR & Timer Display:** Renders the dynamic UPI QR code (`upi://pay?pa=...&am=...&cu=INR&tn=Verified Merchant Account`) along with an active 2-minute countdown timer.
-- **Auto-Expiration:** Automatically invalidates QR codes after 120 seconds if unfulfilled.
-- **Payment Confirmation:** Users submit their UTR / transaction reference number to request approval from the merchant.
-
-### 3. 🛡️ Master Admin Portal (`admin.html`)
-- **Centralized Directory:** Full view of all registered merchants, phone numbers, mapped UPI IDs, linked codes, and account statuses.
-- **Account Moderation:** One-click toggling between **Active** and **Blocked** states to freeze suspended merchants.
-- **Merchant Management:** Delete inactive or test merchants with a single click.
-- **Admin Credential Controls:** Update admin username and password via top navigation modal or inline security panel.
-- **Data Hygiene:** 1-click **Clear Fake Data** button to purge mock records and reset platform sales metrics safely.
+## 📑 Table of Contents
+1. [Architecture Overview](#architecture-overview)
+2. [Folder Structure](#folder-structure)
+3. [Configuration & Environment Variables](#configuration--environment-variables)
+4. [Running on Localhost](#running-on-localhost)
+5. [Core Business Logic & Rules](#core-business-logic--rules)
+6. [API Specification](#api-specification)
+7. [WebSocket Event Protocol](#websocket-event-protocol)
+8. [Frontend State Management](#frontend-state-management)
+9. [Testing Suite](#testing-suite)
 
 ---
 
-## 🔄 End-to-End Payment Sequence
+## 1. Architecture Overview
 
-The system supports two checkout workflows depending on the transaction value: **Standard Single Payment (≤ ₹1,999)** and **Smart Split Payment (> ₹1,999)**.
+The system is organized around clean separation of concerns, decoupling business logic, state management, and transport layers:
 
-### Sequence Diagram
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor U as End User (Payer)
-    participant UP as User Portal (user.html)
-    participant S as Gateway Server (server.js)
-    participant MP as Merchant Portal (merchant.html)
-    actor M as Merchant (Receiver)
-    actor UPI as UPI App (GPay / PhonePe / Paytm)
-    actor A as Master Admin (admin.html)
-
-    %% Pairing
-    Note over U,MP: Phase 1: Terminal Pairing
-    M->>MP: Views Unique Link Code (e.g. MC-99)
-    U->>UP: Enters Merchant Link Code (MC-99)
-    UP->>S: POST /api/user/pair { code: "MC-99" }
-    S-->>UP: Pairing Confirmed (Slot 1 or 2 connected)
-    S-->>MP: Active User Count Updated (+1)
-
-    %% Dispatch & Splitting
-    Note over M,UP: Phase 2: Amount Dispatch & UPI Generation
-    M->>MP: Enters Bill Amount (e.g. ₹4,500)
-    alt Amount <= ₹1,999
-        MP->>S: POST /api/merchant/dispatch { amount: 1200 }
-        S->>S: Create Single Split [₹1,200]
-    else Amount > ₹1,999 (Auto-Split Triggered)
-        MP->>S: POST /api/merchant/dispatch { amount: 4500 }
-        S->>S: Auto-split into: [₹1,999, ₹1,999, ₹502]
-    end
-    S->>S: Build Unencoded URI: upi://pay?pa={destUpi}&am={amt}&cu=INR&tn=Verified Merchant Account
-    S-->>UP: Dispatch Split Chunk #1 to Paired User
-    UP->>UP: Render Scannable QR Code + Start 120s Countdown Timer
-
-    %% Payment Execution
-    Note over U,UPI: Phase 3: Payer Payment Execution
-    U->>UPI: Scans QR code with PhonePe / GPay / Paytm
-    UPI->>UPI: Direct Bank Transfer to Destination UPI
-    U->>UP: Inputs 12-digit UTR / Reference ID
-    UP->>S: POST /api/user/submit-payment { txId, utr }
-
-    %% Merchant Verification
-    Note over S,M: Phase 4: Verification & Settlement
-    S-->>MP: Alert: Payment pending approval in queue
-    M->>MP: Checks bank statement and clicks [Approve]
-    MP->>S: POST /api/merchant/approve-tx { txId }
-    S->>S: Mark Transaction as Approved & Update Ledger
-    S-->>UP: Status Update: Payment Completed!
-    S-->>MP: Refresh Total Sales & Today Volume
-
-    %% Admin Oversight
-    Note over S,A: Phase 5: Administrative Oversight
-    A->>S: GET /api/admin/stats
-    S-->>A: Live GMV, Active Merchants & Platform Health
+```
+[ Customer Phone / Browser ]          [ Merchant Dashboard ]          [ Admin Console ]
+             │                                   │                           │
+             ▼                                   ▼                           ▼
+      /user.html (UI)                    /merchant.html (UI)         /admin.html (UI)
+             │                                   │                           │
+  [ userState.js / userApp.js ]        [ merchantState / App ]       [ adminState / App ]
+             │                                   │                           │
+             └──────────────────┬────────────────┘                           │
+                                ▼                                            ▼
+                    [ apiClient & soundManager ] (Shared Reusable Modules)
+                                │
+                 HTTP REST & WebSocket (ws://)
+                                │
+                                ▼
+                       Express HTTP Server (server.js)
+                                │
+        ┌───────────────────────┼────────────────────────┐
+        ▼                       ▼                        ▼
+  [ Middlewares ]         [ API Router ]          [ Socket Manager ]
+  - requestLogger         - /api/merchant         - merchantSockets
+  - validator             - /api/user             - userSockets
+  - errorHandler          - /api/admin            - room broadcasts
+                          - /api (system)
+                                │
+        ┌───────────────────────┴────────────────────────┐
+        ▼                                                ▼
+  [ Business Services ]                            [ Storage Layer ]
+  - upiService (splits <= 1999, URIs)              - jsonDb (sync disk writer)
+  - qrService (styled QR rendering)                - merchantStore
+  - networkService (LAN/Wi-Fi discovery)           - transactionStore
+                                                   - terminalStore (slots & heartbeats)
 ```
 
 ---
 
-### Step-by-Step Execution Workflow
+## 2. Folder Structure
 
-1. **Terminal Pairing:**
-   - The merchant displays their terminal link code (e.g., `MC-99`) to the customer.
-   - The user opens `user.html`, enters the link code, and immediately pairs with the merchant terminal. Up to 2 concurrent users can pair with a single merchant.
-
-2. **Amount Input & Threshold Evaluation:**
-   - The merchant enters the transaction amount in their portal.
-   - If the amount is **≤ ₹1,999**, a single payment payload is constructed.
-   - If the amount is **> ₹1,999**, the **Splitting Engine** computes chunks of ₹1,999 max and a remainder chunk (e.g., ₹4,500 ➔ ₹1,999 + ₹1,999 + ₹502).
-
-3. **Standardized UPI URI Assembly:**
-   - The server constructs the payment URI according to NPCI specifications:
-     ```text
-     upi://pay?pa=paytm.s1m66cw@pty&am=598&cu=INR&tn=Verified Merchant Account
-     ```
-   - Parameters maintain literal `@` and natural spaces without percent-encoding to ensure 100% interoperability across all mobile UPI scanners.
-
-4. **Dynamic QR Presentation & Security Countdown:**
-   - The paired user portal receives the payload and renders a QR code via `qrcode.min.js`.
-   - A strict **120-second (2-minute) countdown timer** initiates.
-   - If unpaid within 120 seconds, the QR expires automatically to prevent transaction collisions.
-
-5. **Customer Payment & UTR Submission:**
-   - The customer scans the QR code with any UPI app (Paytm, Google Pay, PhonePe, BHIM, Cred) and completes the pin-authorized bank transfer.
-   - The customer inputs the 12-digit UTR (Unique Transaction Reference) into the user portal and clicks **Submit Payment**.
-
-6. **Real-Time Merchant Verification:**
-   - The transaction enters the merchant's **Pending Approvals Queue**.
-   - The merchant cross-checks the credit alert or bank notification and clicks **Approve** (or **Deny**).
-   - Upon approval, the user portal shows a green **Payment Confirmed** state, and the merchant's **Total Sales** counter increments in real time.
-
-7. **Multi-Chunk Sequential Handling (for split transactions):**
-   - If multiple chunks exist, once chunk #1 is approved, the system dispatches chunk #2 immediately to the paired user until the full order amount is fulfilled.
+```
+upi-merchant-system/
+├── .env                          # Local environment configuration
+├── .env.example                  # Environment configuration template
+├── package.json                  # Scripts and dependencies
+├── README.md                     # Comprehensive documentation
+├── server.js                     # Server entry point & startup banner
+├── db.js                         # Root façade for backward compatibility
+├── data/
+│   └── database.json             # Persistent local JSON data store
+├── src/
+│   ├── config/
+│   │   ├── env.js                # Environment loader with fallbacks
+│   │   └── constants.js          # Platform constants, statuses, event names
+│   ├── utils/
+│   │   ├── logger.js             # Formatted ISO logger
+│   │   └── helpers.js            # Normalization, 6-digit code generators
+│   ├── services/
+│   │   ├── upiService.js         # Split logic (<= 1999), URI builder, payload routing
+│   │   ├── qrService.js          # Base64 QR code generation
+│   │   └── networkService.js     # LAN / Wi-Fi IP resolver for phone testing
+│   ├── storage/
+│   │   ├── jsonDb.js             # Disk synchronization and cache adapter
+│   │   ├── merchantStore.js      # Merchant CRUD & credential verification
+│   │   ├── transactionStore.js   # Transactions, sequential chunks, stats
+│   │   └── terminalStore.js      # Heartbeat registry, 2-slot limit, Terminal 3 blocking
+│   ├── middlewares/
+│   │   ├── requestLogger.js      # HTTP request logging
+│   │   ├── validator.js          # Parameter & body validation
+│   │   └── errorHandler.js       # Centralized error handler returning structured JSON
+│   ├── controllers/
+│   │   ├── merchantController.js # Merchant API operations
+│   │   ├── userController.js     # Terminal pairing & heartbeat polling
+│   │   ├── adminController.js    # Platform governance & metrics
+│   │   └── systemController.js   # QR generator, network info, terminal block
+│   ├── routes/
+│   │   ├── api.js                # Master scalable API router
+│   │   ├── merchantRoutes.js     # /api/merchant/*
+│   │   ├── userRoutes.js         # /api/user/*
+│   │   ├── adminRoutes.js        # /api/admin/*
+│   │   └── systemRoutes.js       # /api/qr, /api/network-info, /api/terminal/3
+│   └── websocket/
+│       └── socketManager.js      # Real-time WebSocket connection manager
+├── public/                       # Single authoritative client web assets root
+│   ├── index.html                # Unified Portal Switcher (Home)
+│   ├── merchant.html             # Merchant Portal view
+│   ├── user.html                 # Customer Terminal view
+│   ├── admin.html                # Admin Console view
+│   ├── css/
+│   │   ├── common.css            # Reusable design tokens, buttons, alerts, badges, modals
+│   │   ├── merchant.css          # Merchant-specific styles
+│   │   ├── user.css              # Customer terminal styles
+│   │   ├── admin.css             # Admin dashboard styles
+│   │   └── index.css             # Home switcher styles
+│   └── js/
+│       ├── shared/
+│       │   ├── store.js          # Reactive Pub/Sub state management store
+│       │   ├── api.js            # Standardized fetch client
+│       │   ├── sound.js          # Web Audio synthesized auditory feedback
+│       │   └── utils.js          # Currency formatting, split calculations, clipboard
+│       ├── merchant/
+│       │   ├── merchantState.js  # Merchant reactive state definition
+│       │   └── merchantApp.js    # Merchant UI bindings, socket listener, preview
+│       ├── user/
+│       │   ├── userState.js      # User terminal state definition
+│       │   └── userApp.js        # Terminal QR viewer, timer, poll sync
+│       └── admin/
+│           ├── adminState.js     # Admin state definition
+│           └── adminApp.js       # Directory audits, KPI metrics, security controls
+└── tests/
+    ├── unit/
+    │   ├── splitAndUpi.test.js   # Unit tests for splitAmount and URI formatting
+    │   └── multiUpi.test.js      # Unit tests for multi-UPI round-robin routing
+    └── integration/
+        ├── api.test.js           # API route tests
+        ├── terminal3.test.js     # Terminal 3 blocking & 6-digit code tests
+        └── e2e.test.js           # Full end-to-end lifecycle verification suite
+```
 
 ---
 
-## 📡 API Endpoints Reference
+## 3. Configuration & Environment Variables
 
-### Merchant Endpoints
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/api/merchant/register` | Register a new merchant (100% free onboarding) |
-| `POST` | `/api/merchant/login` | Authenticate merchant and issue session |
-| `POST` | `/api/merchant/dispatch` | Push amount and generate split UPI chunks |
-| `POST` | `/api/merchant/update-upi` | Update merchant destination UPI VPA |
-| `POST` | `/api/merchant/approve-tx` | Approve pending transaction by ID |
-| `POST` | `/api/merchant/reject-tx` | Reject/deny invalid transaction |
+All settings are configured via `.env` (a template is provided in `.env.example`):
 
-### User Endpoints
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/api/user/pair` | Pair user session with merchant link code |
-| `GET`  | `/api/user/poll` | Long-poll / fetch dispatched QR payload |
-| `POST` | `/api/user/submit-payment`| Submit 12-digit UTR after payment |
-
-### Admin Endpoints
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/api/admin/login` | Authenticate admin |
-| `GET`  | `/api/admin/stats` | Retrieve total platform GMV and counts |
-| `GET`  | `/api/admin/merchants` | List all registered merchants |
-| `POST` | `/api/admin/merchants/:id/toggle` | Toggle Active / Blocked merchant status |
-| `POST` | `/api/admin/merchants/:id/reset-pw` | Admin-initiated password reset |
-| `DELETE`| `/api/admin/merchants/:id` | Delete merchant account |
-| `POST` | `/api/admin/update-credentials` | Change admin username and password |
-| `POST` | `/api/admin/clear-fake-data` | Wipe test data and reset platform statistics |
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `3000` | Local HTTP and WebSocket server port |
+| `HOST` | `0.0.0.0` | Bind host (`0.0.0.0` allows phones on the same Wi-Fi to connect) |
+| `NODE_ENV` | `development` | Runtime environment (`development` / `production`) |
+| `DB_FILE_PATH` | `./data/database.json` | Path to the local JSON database file |
+| `SPLIT_MAX_AMOUNT` | `1999` | Maximum payment amount per chunk (₹ INR) |
+| `COUNTDOWN_TIMER_SECONDS` | `120` | Payment window timer duration in seconds |
+| `MAX_TERMINAL_SLOTS` | `2` | Maximum concurrent terminals allowed per merchant |
+| `ADMIN_USERNAME` | `shubhg9401` | Platform administrator username |
+| `ADMIN_PASSWORD` | `admin123` | Platform administrator password |
+| `DEMO_MERCHANT_PASSWORD` | `demo123` | Password for instant sandbox demo merchant |
 
 ---
 
-## 💻 Tech Stack
+## 4. Running on Localhost
 
-- **Backend:** Node.js, Express.js, `cors`, `body-parser`
-- **Database:** Local JSON-backed persistence store (`data/database.json`) with atomic writes
-- **Frontend:** Vanilla HTML5, CSS3, JavaScript (ES6+)
-- **Styling:** Custom light-blue responsive theme, Flexbox/CSS Grid, high-contrast inputs
-- **QR Generation:** Client-side dynamic QR generation via `qrcode.min.js`
+### Prerequisites
+- Node.js (version 18 or higher recommended)
+- npm
 
----
-
-## 🚀 Getting Started
-
-### 1. Prerequisites
-- [Node.js](https://nodejs.org/) (v16 or higher recommended)
-- `npm` (included with Node.js)
-
-### 2. Installation
+### Installation & Launch
 ```bash
-# Clone or navigate to the project directory
-cd upi-merchant-system
-
-# Install dependencies
+# 1. Install dependencies
 npm install
-```
 
-### 3. Start the Server
-```bash
+# 2. Launch the local server
 npm start
-# or: node server.js
 ```
-The application will launch on `http://localhost:3000`.
 
-### 4. Portal URLs
-- **Main Hub:** `http://localhost:3000/`
-- **Merchant Portal:** `http://localhost:3000/merchant.html` (or `/merchant/`)
-- **User Payment Terminal:** `http://localhost:3000/user.html` (or `/user/`)
-- **Master Admin Dashboard:** `http://localhost:3000/admin.html` (or `/admin/`)
+Once running, navigate to:
+- **Portal Switcher**: [http://localhost:3000/](http://localhost:3000/)
+- **Merchant Portal**: [http://localhost:3000/merchant](http://localhost:3000/merchant)
+- **User Payment Terminal**: [http://localhost:3000/user](http://localhost:3000/user)
+- **Admin Console**: [http://localhost:3000/admin](http://localhost:3000/admin)
 
----
-
-## 🔒 Security & Best Practices
-
-- **Zero URL Encoding on UPI VPAs:** Prevents `%40` encoding bugs in mobile UPI app parsers.
-- **Strict 2-Minute Expiry:** QR codes are invalidated after 120 seconds to prevent unauthorized delayed claims.
-- **Manual Proof Verification:** Requires merchant confirmation of UTR numbers before crediting balances.
-- **Custom Admin Access:** Full administrative credential rotation and instant account suspension controls.
+### Testing on a Mobile Phone (Same Wi-Fi)
+1. Ensure your phone and PC are connected to the same Wi-Fi network.
+2. In the Merchant Portal, click **"📱 Open on Phone"** to display a QR code with your LAN IP address (e.g. `http://192.168.1.3:3000/user.html?code=999999`).
+3. Scan the QR code with your phone camera to open the Customer Terminal directly on your mobile device.
 
 ---
 
-## 📄 License
-MIT License. Open for development, testing, and production deployment.
+## 5. Core Business Logic & Rules
+
+### 1. Payment Auto-Splitting ($\le ₹1999$)
+- **Condition A (Amount $\le ₹1999$)**:
+  Generates a single payment payload.
+- **Condition B (Amount $> ₹1999$)**:
+  Automatically split into sequential chunks of at most ₹1999.
+  - E.g. $₹3000 \rightarrow [₹1999, ₹1001]$
+  - E.g. $₹4500 \rightarrow [₹1999, ₹1999, ₹502]$
+
+### 2. Multi-Account UPI Destination Routing
+- Merchants can configure between 1 and 5 destination UPI IDs using the dropdown in the **Transaction Amount Entry & Auto-Splitting** section.
+- Split chunks cycle sequentially across the configured accounts (Payload 1 $\rightarrow$ UPI #1, Payload 2 $\rightarrow$ UPI #2, Payload 3 $\rightarrow$ UPI #1).
+- Each generated dynamic QR code targets that specific chunk's receiving UPI address.
+
+### 3. Assigned Unique Code (6 Digits)
+- Every merchant is assigned a unique 6-digit numeric pairing code (e.g. `999999` for Demo).
+- Customers enter this 6-digit code on their terminal to establish a direct link with the merchant.
+
+### 4. Terminal Slots & Terminal 3 Blocking
+- Each merchant code supports at most **2 concurrent user terminals** (Terminal 1 and Terminal 2).
+- Attempting to connect a 3rd concurrent terminal triggers a **403 Forbidden** error with `terminal3Blocked: true`, rendering a warning card and blocking access.
+
+### 5. Sequential Chunk Progression & 120s Expiry
+- When a payment request is initiated, Payload 1 is pushed to the customer's terminal with a live 2-minute countdown timer.
+- When the customer pays and the merchant clicks **"Approve"**, Payload 1 is marked as approved and Payload 2 is immediately pushed with a fresh 2-minute countdown timer.
+- Once all chunks are approved, the customer screen shows the success celebration receipt.
+
+---
+
+## 6. API Specification
+
+All API endpoints return standard JSON responses:
+
+### Merchant Endpoints (`/api/merchant`)
+- `POST /api/merchant/register`: Free merchant registration.
+- `POST /api/merchant/login`: Merchant login.
+- `GET /api/merchant/me/:id`: Fetch merchant profile and slot indicators.
+- `GET /api/merchant/demo`: Instant demo sandbox merchant session.
+- `POST /api/merchant/regenerate-codes`: Generates a new 6-digit assigned unique code.
+- `POST /api/merchant/update-upi`: Update destination UPI ID(s).
+- `POST /api/merchant/payment-request`: Create and dispatch payment request.
+- `POST /api/merchant/payment-action`: Approve or deny active chunk (`{ action: 'approve' | 'deny' }`).
+- `GET /api/merchant/sync/:id`: Poll dashboard state (slots, stats, transactions, active payment).
+- `GET /api/merchant/stats/:id`: Retrieve revenue statistics and transaction counts.
+- `GET /api/merchant/transactions/:id`: Retrieve transaction history.
+
+### User Terminal Endpoints (`/api/user`)
+- `GET /api/user/validate-code/:code`: Validates 6-digit merchant code.
+- `GET /api/user/terminal/:code`: Heartbeat & synchronization endpoint.
+- `POST /api/user/submit-payment`: Customer submits payment verification / UTR.
+- `GET /api/user/payment-status/:txnId`: Poll status of a transaction.
+
+### Admin Endpoints (`/api/admin`)
+- `POST /api/admin/login`: Administrator login.
+- `GET /api/admin/stats`: Platform-wide GMV, merchant, and terminal metrics.
+- `GET /api/admin/merchants`: Directory of registered merchants.
+- `POST /api/admin/merchant-status`: Suspend or reactivate merchant account.
+- `POST /api/admin/reset-password`: Reset merchant credentials.
+- `POST /api/admin/clear-data`: Purge non-demo test data.
+- `GET /api/admin/transactions`: Global audit log of all transactions.
+
+### System Utilities (`/api`)
+- `GET /api/qr?text=...`: Generate dynamic QR data URL.
+- `GET /api/network-info`: Discover local Wi-Fi / LAN IP.
+- `ALL /api/terminal/3`: Dedicated blocked endpoint returning 403 Forbidden.
+
+---
+
+## 7. WebSocket Event Protocol
+
+WebSockets (`ws://localhost:3000`) provide zero-latency real-time state synchronization:
+
+| Event Name | Direction | Payload Description |
+|---|---|---|
+| `merchant_init` | Client $\rightarrow$ Server | Merchant registers socket connection (`merchantId`) |
+| `merchant_ready` | Server $\rightarrow$ Client | Server returns initial slot occupancy |
+| `user_init` | Client $\rightarrow$ Server | User terminal pairs via 6-digit unique code |
+| `user_ready` | Server $\rightarrow$ Client | Pairing confirmed; terminal slot assigned |
+| `slot_updated` | Server $\rightarrow$ Merchant | Broadcasts updated terminal slot count (`0/2`, `1/2`, `2/2`) |
+| `payment_incoming` | Server $\rightarrow$ User | Dispatches active QR payload to user terminal |
+| `payment_pending` | Server $\rightarrow$ Merchant | Updates merchant UI to waiting state |
+| `user_payment_submitted` | Server $\rightarrow$ Merchant | Customer submitted payment / UTR |
+| `chunk_approved_next` | Server $\rightarrow$ User & Merchant | Previous chunk approved; next sequential chunk active |
+| `payment_decision` | Server $\rightarrow$ User | Final approval or denial decision |
+| `user_error` | Server $\rightarrow$ User | Returned if code is invalid or Terminal 3 is blocked |
+
+---
+
+## 8. Frontend State Management
+
+Frontend applications are built with modular separation:
+- **`createStore(initialState)` (`public/js/shared/store.js`)**:
+  Reactive Pub/Sub state store. State changes notify registered listeners.
+- **`apiClient` (`public/js/shared/api.js`)**:
+  Standardized HTTP fetch wrapper handling serialization, parsing, and structured error throwing.
+- **`soundManager` (`public/js/shared/sound.js`)**:
+  Web Audio API synthesizer producing `chime`, `beep`, and `alert` tones without external assets.
+- **`appUtils` (`public/js/shared/utils.js`)**:
+  Indian Rupee currency formatter, split calculator, date formatting, and clipboard utilities.
+
+---
+
+## 9. Testing Suite
+
+The codebase includes comprehensive unit, integration, and end-to-end tests:
+
+```bash
+# Run unit tests (split logic & multi-UPI routing)
+npm test
+
+# Run integration tests (terminal 3 blocking & HTTP APIs)
+npm run test:integration
+
+# Run full end-to-end specification test
+npm run test:e2e
+
+# Run the complete test suite
+npm run test:all
+```
+
+---
+
+## 10. License
+
+ISC License. Built for local development and private testing.

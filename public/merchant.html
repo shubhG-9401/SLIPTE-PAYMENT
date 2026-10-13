@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Merchant Portal | Paytm UPI Gateway</title>
-  <link rel="stylesheet" href="/merchant/merchant.css">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/css/merchant.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -349,8 +350,8 @@
                 <th>Status</th>
               </tr>
             </thead>
-            <tbody id="txnsTableBody">
-              <tr>
+            <tbody id="txnTableBody">
+              <tr id="noTxnsRow">
                 <td colspan="6" class="text-center">No transactions recorded yet.</td>
               </tr>
             </tbody>
@@ -385,6 +386,12 @@
     </div>
   </main>
 
-  <script src="/merchant/merchant.js"></script>
+  <!-- Modular Reusable Components & Reactive State Architecture -->
+  <script src="/js/shared/store.js"></script>
+  <script src="/js/shared/api.js"></script>
+  <script src="/js/shared/sound.js"></script>
+  <script src="/js/shared/utils.js"></script>
+  <script src="/js/merchant/merchantState.js"></script>
+  <script src="/js/merchant/merchantApp.js"></script>
 </body>
 </html>

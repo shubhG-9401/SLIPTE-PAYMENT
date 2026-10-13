@@ -1,17 +1,21 @@
 {
   "name": "upi-merchant-system",
-  "version": "1.0.0",
-  "description": "Multi-portal UPI Payment & Merchant Management System",
+  "version": "2.0.0",
+  "description": "Modular Localhost Multi-portal UPI Payment & Merchant Gateway Platform",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test.js"
+    "test": "node tests/unit/splitAndUpi.test.js && node tests/unit/multiUpi.test.js",
+    "test:integration": "node tests/integration/terminal3.test.js && node tests/integration/api.test.js",
+    "test:e2e": "node tests/integration/e2e.test.js",
+    "test:all": "npm test && npm run test:integration && npm run test:e2e"
   },
   "keywords": [
     "upi",
     "merchant",
     "payment",
-    "razorpay"
+    "gateway",
+    "dynamic-qr"
   ],
   "author": "",
   "license": "ISC",
