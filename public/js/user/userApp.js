@@ -19,8 +19,9 @@
   }
 
   // DOM Elements
-  const codeDigits = document.getElementById('codeDigits');
+  const codeDigits = document.getElementById('inputPairingCode') || document.getElementById('codeDigits');
   const connectTerminalBtn = document.getElementById('connectTerminalBtn');
+  const pairingForm = document.getElementById('pairingForm');
   const pairingAlert = document.getElementById('pairingAlert');
   const pairingBox = document.getElementById('pairingBox');
   const upiBox = document.getElementById('upiBox');
@@ -49,12 +50,14 @@
   const currentPartRoute = document.getElementById('currentPartRoute');
   const currentPartUpi = document.getElementById('currentPartUpi');
   const upiIntentBtn = document.getElementById('upiIntentBtn');
+  const copyUpiUriBtn = document.getElementById('copyUpiUriBtn');
+  const inputUtr = document.getElementById('inputUtr');
   const markPaidBtn = document.getElementById('markPaidBtn');
   const receiptAmount = document.getElementById('receiptAmount');
   const resetTerminalBtn = document.getElementById('resetTerminalBtn');
   const retryTerminalBtn = document.getElementById('retryTerminalBtn');
-  const expiredRetryBtn = document.getElementById('expiredRetryBtn');
-  const blockedRetryBtn = document.getElementById('blockedRetryBtn');
+  const expiredTerminalBtn = document.getElementById('expiredTerminalBtn') || document.getElementById('expiredRetryBtn');
+  const retryPairingBtn = document.getElementById('retryPairingBtn') || document.getElementById('blockedRetryBtn');
 
   /* ==========================================================================
      STATE TRANSITIONS
@@ -99,40 +102,50 @@
      ========================================================================== */
 
   async function connectTerminal(code) {
+    if (!code) return;
+    const cleanCode = code.trim().toUpperCase();
+
     if (pairingAlert) pairingAlert.classList.add('hidden');
 
     try {
-      const data = await apiClient.get(`/api/user/terminal/${encodeURIComponent(code)}`, { sessionId });
+      const data = await apiClient.get(`/api/user/terminal/${encodeURIComponent(cleanCode)}`, { sessionId });
 
       if (data.terminal3Blocked || data.slotNumber === 3) {
-        showTerminal3Blocked(code, data.message || data.error);
+        showTerminal3Blocked(cleanCode, data.message || data.error);
         return;
       }
 
       userStore.setState({
-        currentCode: code,
+        currentCode: cleanCode,
         merchantInfo: data.merchant,
         slotNumber: data.slot || 1
       });
 
-      try { localStorage.setItem('slipte_last_code', code); } catch (e) {}
+      try { localStorage.setItem('slipte_last_code', cleanCode); } catch (e) {}
 
       onTerminalConnected({
-        code,
-        merchantPhone: data.merchant.phone,
-        merchantUpi: data.merchant.upi_id,
+        code: cleanCode,
+        merchantPhone: data.merchant ? data.merchant.phone : '',
+        merchantUpi: data.merchant ? data.merchant.upi_id : 'merchant@paytm',
         slot: data.slot
       });
 
-      startHttpPolling(code);
-      initWebSocket(code);
+      // If active payment already pending, display it immediately
+      if (data.activePayment) {
+        const ap = data.activePayment;
+        const txn = ap.transaction || ap;
+        renderActivePayment(txn, ap.remainingSeconds || 120, ap.qrDataUrl);
+      }
+
+      startHttpPolling(cleanCode);
+      initWebSocket(cleanCode);
     } catch (err) {
       if (err.terminal3Blocked || (err.data && err.data.terminal3Blocked)) {
-        showTerminal3Blocked(code, err.message);
+        showTerminal3Blocked(cleanCode, err.message);
         return;
       }
       if (pairingAlert) {
-        pairingAlert.textContent = err.message;
+        pairingAlert.textContent = '❌ ' + (err.message || 'Connection failed');
         pairingAlert.className = 'alert error';
         pairingAlert.classList.remove('hidden');
       }
@@ -147,12 +160,16 @@
     }
 
     if (pairingBox) pairingBox.classList.add('hidden');
+    if (terminalBlockedState) terminalBlockedState.classList.add('hidden');
     if (upiBox) upiBox.classList.remove('hidden');
 
     if (merchantInfoText) merchantInfoText.textContent = `Merchant Connected (${msg.code || '999999'})${slotText}`;
     if (waitingMerchantUpi && msg.merchantUpi) waitingMerchantUpi.textContent = msg.merchantUpi;
 
-    setScreenState('waiting');
+    // Default to waiting state unless active payment already present
+    if (!userStore.getState().currentTxn) {
+      setScreenState('waiting');
+    }
   }
 
   /* ==========================================================================
@@ -162,7 +179,7 @@
   function renderActivePayment(txn, secs = 120, preloadedQrDataUrl = null) {
     userStore.setState({ currentTxn: txn, remainingSeconds: secs });
 
-    displayTotalAmount.textContent = Number(txn.total_amount).toFixed(2);
+    if (displayTotalAmount) displayTotalAmount.textContent = Number(txn.total_amount).toFixed(2);
     if (receiptAmount) receiptAmount.textContent = appUtils.formatCurrency(txn.total_amount);
 
     const currentIdx = (txn.current_part_index || 1) - 1;
@@ -172,32 +189,38 @@
       upi_uri: appUtils.buildUpiUri(txn.merchant_upi_id, txn.total_amount)
     };
 
-    if (txn.split_count > 1) {
-      splitNoticeBadge.classList.remove('hidden');
-      splitNoticeBadge.textContent = `Payload ${txn.current_part_index || 1} of ${txn.split_count} (Auto-Split ≤ ₹1999)`;
-    } else {
-      splitNoticeBadge.classList.add('hidden');
+    if (splitNoticeBadge) {
+      if (txn.split_count > 1) {
+        splitNoticeBadge.classList.remove('hidden');
+        splitNoticeBadge.textContent = `Payload ${txn.current_part_index || 1} of ${txn.split_count} (Auto-Split ≤ ₹1999)`;
+      } else {
+        splitNoticeBadge.classList.add('hidden');
+      }
     }
 
-    currentPartAmount.textContent = `Pay ${appUtils.formatCurrency(currentChunk.amount)}`;
+    if (currentPartAmount) currentPartAmount.textContent = `Pay ${appUtils.formatCurrency(currentChunk.amount)}`;
     const destinationUpi = currentChunk.upi_id || txn.merchant_upi_id || 'paytm.s1m66cw@pty';
     if (currentPartUpi) currentPartUpi.textContent = destinationUpi;
 
-    if (upiIntentBtn) upiIntentBtn.href = currentChunk.upi_uri;
+    const uri = currentChunk.upi_uri || appUtils.buildUpiUri(destinationUpi, currentChunk.amount);
+    if (upiIntentBtn) upiIntentBtn.href = uri;
+
+    // Reset UTR input for new chunk
+    if (inputUtr) inputUtr.value = '';
 
     // QR Image Rendering
     if (preloadedQrDataUrl) {
-      qrImage.src = preloadedQrDataUrl;
-      qrLoading.classList.add('hidden');
+      if (qrImage) qrImage.src = preloadedQrDataUrl;
+      if (qrLoading) qrLoading.classList.add('hidden');
     } else {
-      qrLoading.classList.remove('hidden');
-      apiClient.get('/api/qr', { text: currentChunk.upi_uri }).then(d => {
-        if (d.dataUrl) {
+      if (qrLoading) qrLoading.classList.remove('hidden');
+      apiClient.get('/api/qr', { text: uri }).then(d => {
+        if (d.dataUrl && qrImage) {
           qrImage.src = d.dataUrl;
-          qrLoading.classList.add('hidden');
+          if (qrLoading) qrLoading.classList.add('hidden');
         }
       }).catch(() => {
-        qrLoading.textContent = 'Failed to generate QR';
+        if (qrLoading) qrLoading.textContent = 'Generating QR code...';
       });
     }
 
@@ -281,20 +304,27 @@
           }
         } else if (data.lastTransaction) {
           const lt = data.lastTransaction;
-          const stateKey = `${lt.id}_decision_${lt.status}`;
-          if (lastProcessedTxnKey !== stateKey) {
-            lastProcessedTxnKey = stateKey;
-            if (lt.status === 'approved') {
-              soundManager.play('chime');
-              setScreenState('approved');
-            } else if (lt.status === 'denied') {
-              soundManager.play('alert');
-              setScreenState('denied');
+          const state = userStore.getState();
+          // ONLY trigger decision if terminal is actively processing this transaction
+          if (state.currentTxn && state.currentTxn.id === lt.id && (state.uiState === 'active' || state.uiState === 'submitted')) {
+            const stateKey = `${lt.id}_decision_${lt.status}`;
+            if (lastProcessedTxnKey !== stateKey) {
+              lastProcessedTxnKey = stateKey;
+              if (lt.status === 'approved') {
+                soundManager.play('chime');
+                setScreenState('approved');
+              } else if (lt.status === 'denied') {
+                soundManager.play('alert');
+                setScreenState('denied');
+              }
             }
+          } else if (state.uiState !== 'waiting' && !state.currentTxn) {
+            setScreenState('waiting');
           }
         } else {
           const currentState = userStore.getState().uiState;
-          if (currentState !== 'waiting' && currentState !== 'pairing') {
+          if (currentState !== 'waiting') {
+            userStore.setState({ currentTxn: null });
             setScreenState('waiting');
             lastProcessedTxnKey = null;
           }
@@ -358,8 +388,8 @@
 
       ws.onclose = () => {
         setTimeout(() => {
-          const code = userStore.getState().currentCode;
-          if (code) initWebSocket(code);
+          const c = userStore.getState().currentCode;
+          if (c) initWebSocket(c);
         }, 5000);
       };
     } catch (err) {}
@@ -370,16 +400,28 @@
      ========================================================================== */
 
   function initDomEvents() {
-    if (connectTerminalBtn) {
-      connectTerminalBtn.addEventListener('click', () => {
-        const code = (codeDigits.value || '').trim();
+    // Form submit listener (handles both Enter key and submit button)
+    if (pairingForm) {
+      pairingForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const code = codeDigits ? codeDigits.value.trim() : '';
         if (!code) {
-          pairingAlert.textContent = 'Please enter a 6-digit Assigned Unique Code.';
-          pairingAlert.className = 'alert error';
-          pairingAlert.classList.remove('hidden');
+          if (pairingAlert) {
+            pairingAlert.textContent = 'Please enter a 6-digit Assigned Unique Code.';
+            pairingAlert.className = 'alert error';
+            pairingAlert.classList.remove('hidden');
+          }
           return;
         }
         connectTerminal(code);
+      });
+    }
+
+    if (connectTerminalBtn && !pairingForm) {
+      connectTerminalBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const code = codeDigits ? codeDigits.value.trim() : '';
+        if (code) connectTerminal(code);
       });
     }
 
@@ -387,16 +429,33 @@
       codeDigits.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          connectTerminal(codeDigits.value.trim());
+          const code = codeDigits.value.trim();
+          if (code) connectTerminal(code);
         }
       });
     }
 
+    // Copy UPI link button
+    if (copyUpiUriBtn) {
+      copyUpiUriBtn.addEventListener('click', () => {
+        const txn = userStore.getState().currentTxn;
+        if (!txn) return;
+        const currentIdx = (txn.current_part_index || 1) - 1;
+        const chunk = (txn.chunks && txn.chunks[currentIdx]) || {};
+        const uri = chunk.upi_uri || (upiIntentBtn && upiIntentBtn.href);
+        if (uri) {
+          appUtils.copyToClipboard(uri, copyUpiUriBtn);
+        }
+      });
+    }
+
+    // Submit payment verification (Have Paid)
     if (markPaidBtn) {
       markPaidBtn.addEventListener('click', async () => {
         const txn = userStore.getState().currentTxn;
         if (!txn) return;
-        const utr = prompt('Enter Bank Reference / UTR Number (Optional):', '') || 'Submitted (Self-Reported)';
+        const utrVal = inputUtr ? inputUtr.value.trim() : '';
+        const utr = utrVal || 'Submitted (Self-Reported)';
         try {
           await apiClient.post('/api/user/submit-payment', { txnId: txn.id, utr });
           setScreenState('submitted');
@@ -406,17 +465,39 @@
       });
     }
 
-    if (resetTerminalBtn) resetTerminalBtn.addEventListener('click', () => setScreenState('waiting'));
-    if (retryTerminalBtn) retryTerminalBtn.addEventListener('click', () => setScreenState('waiting'));
-    if (expiredRetryBtn) expiredRetryBtn.addEventListener('click', () => setScreenState('waiting'));
-    if (blockedRetryBtn) blockedRetryBtn.addEventListener('click', () => location.reload());
+    // State reset handlers
+    const resetButtons = [resetTerminalBtn, retryTerminalBtn, expiredTerminalBtn];
+    resetButtons.forEach(btn => {
+      if (btn) {
+        btn.addEventListener('click', () => {
+          userStore.setState({ currentTxn: null });
+          setScreenState('waiting');
+        });
+      }
+    });
+
+    if (retryPairingBtn) {
+      retryPairingBtn.addEventListener('click', () => {
+        if (terminalBlockedState) terminalBlockedState.classList.add('hidden');
+        if (pairingBox) pairingBox.classList.remove('hidden');
+        if (connectionStatusBadge) {
+          connectionStatusBadge.textContent = 'Offline';
+          connectionStatusBadge.className = 'status-badge offline';
+        }
+        if (codeDigits) {
+          codeDigits.value = '';
+          codeDigits.focus();
+        }
+      });
+    }
 
     // Check URL parameters for direct pairing link: e.g. /user.html?code=999999
     const params = new URLSearchParams(window.location.search);
-    const urlCode = params.get('code');
-    if (urlCode && codeDigits) {
-      codeDigits.value = urlCode;
-      setTimeout(() => connectTerminal(urlCode), 300);
+    const urlCode = params.get('code') || params.get('inputPairingCode');
+    if (urlCode) {
+      const cleanUrlCode = urlCode.trim();
+      if (codeDigits) codeDigits.value = cleanUrlCode;
+      setTimeout(() => connectTerminal(cleanUrlCode), 150);
     }
   }
 

@@ -710,6 +710,16 @@
       });
     }
 
+    // Open Terminal Dynamic Link
+    const openTerminalLink = document.getElementById('openTerminalLink');
+    if (openTerminalLink) {
+      openTerminalLink.addEventListener('click', () => {
+        const m = merchantStore.getState().currentMerchant;
+        const code = (m && m.merchant_code) || (document.getElementById('dashMerchantCode') && document.getElementById('dashMerchantCode').textContent.trim()) || '999999';
+        openTerminalLink.href = `/user.html?code=${encodeURIComponent(code)}`;
+      });
+    }
+
     // Phone Connect Modal (LAN QR)
     if (phoneQrModalBtn && phoneConnectModal) {
       phoneQrModalBtn.addEventListener('click', async () => {

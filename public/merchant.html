@@ -141,9 +141,66 @@
         </div>
       </div>
 
-      <!-- PAYMENT REQUEST INITIATOR, AUTO-SPLITTING & TERMINAL LINKAGE -->
+      <!-- MERCHANT TERMINAL LINKAGE & CONNECTED USERS (FULL WIDTH) -->
+      <div class="dashboard-card user-slots-card full-width-card">
+        <div class="card-title-row">
+          <div>
+            <h3>Merchant Terminal Linkage &amp; Connected Users</h3>
+            <p class="card-subtitle">Share your Unique Code with customers. Max 2 distinct users can pair concurrently.</p>
+          </div>
+          <div class="slots-kpi-badge">
+            <span class="kpi-tag">Active Users</span>
+            <span class="kpi-count" id="dashSlotsCounter">0/2</span>
+          </div>
+        </div>
+
+        <div class="terminal-pairing-hero">
+          <div class="code-spotlight-box">
+            <div class="spotlight-left">
+              <span class="spotlight-label">ASSIGNED UNIQUE CODE (6 DIGITS)</span>
+              <div class="spotlight-code-row">
+                <span class="spotlight-code" id="dashMerchantCode">999999</span>
+                <button type="button" id="copyMerchantCodeBtn" class="btn btn-sm btn-secondary" title="Copy Code">📋 Copy Code</button>
+              </div>
+              <span class="spotlight-hint">Customers enter this 6-digit unique code in their User Portal to pair.</span>
+            </div>
+            <div class="spotlight-right">
+              <div class="slot-indicators">
+                <div class="slot-pill" id="slotIndicator1">
+                  <span class="slot-dot"></span>
+                  <span class="slot-name">User Terminal 1: <strong id="slotText1">Available</strong></span>
+                </div>
+                <div class="slot-pill" id="slotIndicator2">
+                  <span class="slot-dot"></span>
+                  <span class="slot-name">User Terminal 2: <strong id="slotText2">Available</strong></span>
+                </div>
+                <div class="slot-pill slot-blocked" id="slotIndicator3" title="Terminal 3 access is blocked">
+                  <span class="slot-dot blocked-dot">⚠️</span>
+                  <span class="slot-name">User Terminal 3: <strong class="badge-blocked">⚠️ Blocked (Max 2 Allowed)</strong></span>
+                </div>
+              </div>
+              <div class="terminal-quick-links">
+                <a href="/user.html" target="_blank" class="btn btn-sm btn-outline open-terminal-btn" id="openTerminalLink">🔗 Open Terminal &rarr;</a>
+                <button type="button" class="btn btn-sm btn-secondary" id="phoneQrModalBtn" title="Scan with Phone to Open Terminal">📱 Open on Phone</button>
+                <button type="button" class="btn btn-sm btn-danger-soft" id="testTerminal3Btn" title="Test Terminal 3 Access">🚫 Terminal 3 (Blocked)</button>
+              </div>
+            </div>
+          </div>
+          <!-- Terminal 3 Warning Sign Banner -->
+          <div id="terminal3WarningBanner" class="terminal-warning-alert hidden">
+            <span class="alert-icon">⚠️</span>
+            <div class="warning-text-group">
+              <strong>ACCESS BLOCKED — Terminal 3 Restricted:</strong>
+              <span>Your merchant account permits a maximum of 2 active customer terminals (Terminal 1 &amp; Terminal 2). Terminal 3 connection attempts are blocked.</span>
+            </div>
+            <button type="button" class="close-alert-btn" id="closeWarningBtn" title="Dismiss">&times;</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAYMENT REQUEST INITIATOR & PENDING APPROVALS QUEUE -->
       <div class="dashboard-grid">
-        <!-- Left Column: Transaction Amount Entry & Linked Terminals -->
+        <!-- Left Column: Transaction Amount Entry & Auto-Splitting -->
         <div class="dashboard-col">
           <!-- Collect Payment Form -->
           <div class="dashboard-card payment-request-card">
@@ -197,63 +254,6 @@
                 Push Payload 1 to Linked User &rarr;
               </button>
             </form>
-          </div>
-
-          <!-- LINKED USER PAIRING TERMINALS (Max 2 separate users) -->
-          <div class="dashboard-card user-slots-card">
-            <div class="card-title-row">
-              <div>
-                <h3>Merchant Terminal Linkage &amp; Connected Users</h3>
-                <p class="card-subtitle">Share your Unique Code with customers. Max 2 distinct users can pair concurrently.</p>
-              </div>
-              <div class="slots-kpi-badge">
-                <span class="kpi-tag">Active Users</span>
-                <span class="kpi-count" id="dashSlotsCounter">0/2</span>
-              </div>
-            </div>
-
-            <div class="terminal-pairing-hero">
-              <div class="code-spotlight-box">
-                <div class="spotlight-left">
-                  <span class="spotlight-label">ASSIGNED UNIQUE CODE (6 DIGITS)</span>
-                  <div class="spotlight-code-row">
-                    <span class="spotlight-code" id="dashMerchantCode">999999</span>
-                    <button id="copyMerchantCodeBtn" class="btn btn-sm btn-secondary" title="Copy Code">📋 Copy Code</button>
-                  </div>
-                  <span class="spotlight-hint">Customers enter this 6-digit unique code in their User Portal to pair.</span>
-                </div>
-                <div class="spotlight-right">
-                  <div class="slot-indicators">
-                    <div class="slot-pill" id="slotIndicator1">
-                      <span class="slot-dot"></span>
-                      <span class="slot-name">User Terminal 1: <strong id="slotText1">Available</strong></span>
-                    </div>
-                    <div class="slot-pill" id="slotIndicator2">
-                      <span class="slot-dot"></span>
-                      <span class="slot-name">User Terminal 2: <strong id="slotText2">Available</strong></span>
-                    </div>
-                    <div class="slot-pill slot-blocked" id="slotIndicator3" title="Terminal 3 access is blocked">
-                      <span class="slot-dot blocked-dot">⚠️</span>
-                      <span class="slot-name">User Terminal 3: <strong class="badge-blocked">⚠️ Blocked (Max 2 Allowed)</strong></span>
-                    </div>
-                  </div>
-                  <div class="terminal-quick-links">
-                    <a href="/user.html" target="_blank" class="btn btn-sm btn-outline open-terminal-btn" id="openTerminalLink">🔗 Open Terminal &rarr;</a>
-                    <button type="button" class="btn btn-sm btn-secondary" id="phoneQrModalBtn" title="Scan with Phone to Open Terminal">📱 Open on Phone</button>
-                    <button type="button" class="btn btn-sm btn-danger-soft" id="testTerminal3Btn" title="Test Terminal 3 Access">🚫 Terminal 3 (Blocked)</button>
-                  </div>
-                </div>
-              </div>
-              <!-- Terminal 3 Warning Sign Banner -->
-              <div id="terminal3WarningBanner" class="terminal-warning-alert hidden">
-                <span class="alert-icon">⚠️</span>
-                <div class="warning-text-group">
-                  <strong>ACCESS BLOCKED — Terminal 3 Restricted:</strong>
-                  <span>Your merchant account permits a maximum of 2 active customer terminals (Terminal 1 &amp; Terminal 2). Terminal 3 connection attempts are blocked.</span>
-                </div>
-                <button type="button" class="close-alert-btn" id="closeWarningBtn" title="Dismiss">&times;</button>
-              </div>
-            </div>
           </div>
         </div>
 

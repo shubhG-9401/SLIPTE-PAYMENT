@@ -29,9 +29,9 @@
 
       <form id="pairingForm">
         <div class="code-input-wrapper">
-          <input type="text" id="inputPairingCode" placeholder="e.g. 999999" maxlength="12" autocomplete="off" required>
+          <input type="text" id="inputPairingCode" name="code" placeholder="e.g. 999999" maxlength="12" autocomplete="off" required>
         </div>
-        <button type="submit" class="btn-upi-primary">Connect Terminal &rarr;</button>
+        <button type="submit" id="connectTerminalBtn" class="btn-upi-primary">Connect Terminal &rarr;</button>
         <div id="pairingAlert" class="alert hidden"></div>
       </form>
     </div>
@@ -115,6 +115,21 @@
               <span class="route-icon">➔</span> Paying to UPI: <strong id="currentPartUpi">paytm.s1m66cw@pty</strong>
             </div>
             <span class="meta-desc">Scan with Paytm, GPay, PhonePe or any UPI app</span>
+          </div>
+
+          <!-- Quick Pay Actions on Mobile -->
+          <div class="upi-actions-row" style="margin-top: 14px;">
+            <a id="upiIntentBtn" href="#" class="btn-upi-intent">⚡ Open in UPI App</a>
+            <button type="button" id="copyUpiUriBtn" class="btn-upi-copy">📋 Copy Link</button>
+          </div>
+
+          <!-- Confirmation / Have Paid Section -->
+          <div class="confirmation-section">
+            <p class="confirm-hint">Paid via UPI App? Enter reference/UTR number or confirm directly:</p>
+            <div class="utr-input-group">
+              <input type="text" id="inputUtr" placeholder="Enter 12-digit UTR number (Optional)" maxlength="24">
+            </div>
+            <button type="button" id="markPaidBtn" class="btn-have-paid">✓ I Have Paid (Notify Merchant)</button>
           </div>
         </div>
 
