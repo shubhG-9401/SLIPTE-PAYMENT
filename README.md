@@ -55,6 +55,63 @@ The system is organized around clean separation of concerns, decoupling business
                                                    - terminalStore (slots & heartbeats)
 ```
 
+### End-to-End Lifecycle Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as End User (Payer)
+    participant UP as User Portal (user.html)
+    participant S as Gateway Server (server.js)
+    participant MP as Merchant Portal (merchant.html)
+    actor M as Merchant (Receiver)
+    actor UPI as UPI App (GPay / PhonePe / Paytm)
+    actor A as Master Admin (admin.html)
+
+    %% Pairing
+    Note over U,MP: Phase 1: Terminal Pairing
+    M->>MP: Views Assigned Link Code (e.g. 999999 / MC-99)
+    U->>UP: Enters Merchant Link Code (999999)
+    UP->>S: POST /api/user/validate-code/:code (or ws: user_init)
+    S-->>UP: Pairing Confirmed (Slot 1 or 2 connected)
+    S-->>MP: Active User Count Updated (+1 via WebSocket)
+
+    %% Dispatch & Splitting
+    Note over M,UP: Phase 2: Amount Dispatch & UPI Generation
+    M->>MP: Enters Bill Amount (e.g. ₹4,500)
+    alt Amount <= ₹1,999
+        MP->>S: POST /api/merchant/payment-request { amount: 1200 }
+        S->>S: Create Single Split [₹1,200]
+    else Amount > ₹1,999 (Auto-Split Triggered)
+        MP->>S: POST /api/merchant/payment-request { amount: 4500 }
+        S->>S: Auto-split into: [₹1,999, ₹1,999, ₹502]
+    end
+    S->>S: Build Unencoded URI: upi://pay?pa={destUpi}&am={amt}&cu=INR&tn=Verified Merchant Account
+    S-->>UP: Dispatch Split Chunk #1 to Paired User (ws: payment_incoming)
+    UP->>UP: Render Scannable QR Code + Start 120s Countdown Timer
+
+    %% Payment Execution
+    Note over U,UPI: Phase 3: Payer Payment Execution
+    U->>UPI: Scans QR code with PhonePe / GPay / Paytm
+    UPI->>UPI: Direct Bank Transfer to Destination UPI
+    U->>UP: Inputs 12-digit UTR / Reference ID
+    UP->>S: POST /api/user/submit-payment { txId, utr }
+
+    %% Merchant Verification
+    Note over S,M: Phase 4: Verification & Settlement
+    S-->>MP: Alert: Payment pending approval in queue (ws: user_payment_submitted)
+    M->>MP: Checks bank statement and clicks [Approve]
+    MP->>S: POST /api/merchant/payment-action { txId, action: "approve" }
+    S->>S: Mark Transaction as Approved & Update Ledger
+    S-->>UP: Status Update: Payment Completed! (ws: chunk_approved_next / payment_decision)
+    S-->>MP: Refresh Total Sales & Today Volume
+
+    %% Admin Oversight
+    Note over S,A: Phase 5: Administrative Oversight
+    A->>S: GET /api/admin/stats
+    S-->>A: Live GMV, Active Merchants & Platform Health
+```
+
 ---
 
 ## 2. Folder Structure
