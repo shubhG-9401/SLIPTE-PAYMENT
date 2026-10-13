@@ -6381,6 +6381,55 @@
       "approved_at": null,
       "denied_at": "2026-10-13T09:08:10.686Z",
       "approved_amount": 0
+    },
+    {
+      "id": "txn_1791882549906_hydk",
+      "merchant_id": "m_demo",
+      "merchant_code": "999999",
+      "user_code": "999999",
+      "merchant_upi_id": "upiA@paytm",
+      "merchant_upi_ids": [
+        "upiA@paytm",
+        "upiB@paytm"
+      ],
+      "merchant_phone": "9999999999",
+      "total_amount": 23,
+      "split_count": 1,
+      "current_part_index": 1,
+      "chunks": [
+        {
+          "part_index": 1,
+          "total_parts": 1,
+          "amount": 23,
+          "upi_id": "upiA@paytm",
+          "upi_uri": "upi://pay?pa=upiA@paytm&am=23&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "pending",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "splits": [
+        {
+          "part_index": 1,
+          "total_parts": 1,
+          "amount": 23,
+          "upi_id": "upiA@paytm",
+          "upi_uri": "upi://pay?pa=upiA@paytm&am=23&cu=INR&tn=Verified%20Merchant%20Account",
+          "status": "pending",
+          "approved_at": null,
+          "denied_at": null,
+          "submitted_at": null,
+          "utr": null
+        }
+      ],
+      "status": "expired",
+      "created_at": "2026-10-13T09:09:09.906Z",
+      "expires_at": "2026-10-13T09:11:09.906Z",
+      "approved_at": null,
+      "denied_at": null,
+      "approved_amount": 0
     }
   ],
   "admins": [
@@ -6400,34 +6449,7 @@
       "slot": 1,
       "blocked": false,
       "connectedAt": 1791882235823,
-      "lastSeen": 1791882498110
-    },
-    {
-      "code": "735267",
-      "sessionId": "test-session-term-1",
-      "slotNumber": 1,
-      "slot": 1,
-      "blocked": false,
-      "connectedAt": 1791882489963,
-      "lastSeen": 1791882489963
-    },
-    {
-      "code": "735267",
-      "sessionId": "test-session-term-2",
-      "slotNumber": 2,
-      "slot": 2,
-      "blocked": false,
-      "connectedAt": 1791882489975,
-      "lastSeen": 1791882489975
-    },
-    {
-      "code": "945880",
-      "sessionId": "test_sess_api",
-      "slotNumber": 1,
-      "slot": 1,
-      "blocked": false,
-      "connectedAt": 1791882490104,
-      "lastSeen": 1791882490126
+      "lastSeen": 1791882581727
     }
   ]
 }
