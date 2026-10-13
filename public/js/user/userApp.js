@@ -161,12 +161,6 @@
 
     const currentPartAmount = document.getElementById('currentPartAmount');
     const currentPartUpi = document.getElementById('currentPartUpi');
-    const upiIntentBtn = document.getElementById('upiIntentBtn');
-    const copyUpiUriBtn = document.getElementById('copyUpiUriBtn');
-
-    const inputUtr = document.getElementById('inputUtr');
-    const utrErrorMsg = document.getElementById('utrErrorMsg');
-    const markPaidBtn = document.getElementById('markPaidBtn');
 
     const timerRingCircle = document.getElementById('userTimerRingCircle');
     const timerDigits = document.getElementById('userTimerDigits');
@@ -221,16 +215,8 @@
     const destinationUpi = chunk.upi_id || txn.merchant_upi_id || 'paytm.s1m66cw@pty';
     if (currentPartUpi) currentPartUpi.textContent = destinationUpi;
 
-    // UPI Deep Link & Copy
+    // Build UPI Payment URI
     const uri = chunk.upi_uri || appUtils.buildUpiUri(destinationUpi, chunk.amount);
-    if (upiIntentBtn) upiIntentBtn.href = uri;
-
-    if (copyUpiUriBtn) {
-      copyUpiUriBtn.addEventListener('click', () => {
-        appUtils.copyToClipboard(uri, copyUpiUriBtn);
-        uiComponents.showToast('UPI payment link copied!', 'info');
-      });
-    }
 
     // QR Image Presentation with Alt Text
     if (qrImg) {
@@ -261,74 +247,11 @@
         // Dim and disable QR code
         if (qrFrame) qrFrame.classList.add('expired');
         if (qrExpiredOverlay) qrExpiredOverlay.classList.remove('hidden');
-        if (markPaidBtn) markPaidBtn.disabled = true;
-        if (upiIntentBtn) upiIntentBtn.classList.add('disabled');
         uiComponents.showToast('Payment window expired (120s elapsed)', 'error');
         soundManager.play('alert');
       }
     });
     timerRing.start();
-
-    // 12-Digit UTR Validation
-    function validateUtr(showError = true) {
-      if (!inputUtr) return true;
-      const raw = inputUtr.value.trim();
-      const isValid = /^\d{12}$/.test(raw);
-
-      if (!isValid && showError) {
-        if (utrErrorMsg) {
-          if (raw.length === 0) {
-            utrErrorMsg.textContent = '⚠️ Please enter the 12-digit UTR from your UPI payment app.';
-          } else {
-            utrErrorMsg.textContent = `⚠️ UTR must be exactly 12 numeric digits (currently ${raw.length} digits).`;
-          }
-          utrErrorMsg.classList.remove('hidden');
-        }
-        inputUtr.style.borderColor = '#ef4444';
-      } else {
-        if (utrErrorMsg) utrErrorMsg.classList.add('hidden');
-        inputUtr.style.borderColor = '';
-      }
-      return isValid;
-    }
-
-    if (inputUtr) {
-      // Auto-filter non-digit characters
-      inputUtr.addEventListener('input', () => {
-        inputUtr.value = inputUtr.value.replace(/\D/g, '').slice(0, 12);
-        if (inputUtr.value.length === 12) {
-          validateUtr(false);
-        }
-      });
-      inputUtr.addEventListener('blur', () => {
-        if (inputUtr.value.length > 0) {
-          validateUtr(true);
-        }
-      });
-    }
-
-    // Mark Paid / Submit UTR
-    if (markPaidBtn) {
-      markPaidBtn.addEventListener('click', async () => {
-        if (!validateUtr(true)) {
-          if (inputUtr) inputUtr.focus();
-          return;
-        }
-
-        const utr = inputUtr.value.trim();
-        try {
-          markPaidBtn.disabled = true;
-          markPaidBtn.textContent = 'Submitting...';
-          await apiClient.post('/api/user/submit-payment', { txnId: txn.id, utr });
-          uiComponents.showToast('Payment submitted for merchant approval', 'info');
-          renderScreen('submitted');
-        } catch (err) {
-          markPaidBtn.disabled = false;
-          markPaidBtn.textContent = '✓ I Have Paid (Notify Merchant)';
-          uiComponents.showToast('Submission error: ' + err.message, 'error');
-        }
-      });
-    }
   }
 
   // 5. Submitted View
