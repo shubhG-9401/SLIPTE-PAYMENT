@@ -807,11 +807,16 @@
     const code = (m && m.merchant_code) || '999999';
     let host = window.location.host;
 
+    const phoneNetworkAdapterName = document.getElementById('phoneNetworkAdapterName');
+
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
       try {
         const net = await apiClient.get('/api/network-info');
         if (net.ip && net.ip !== '127.0.0.1') {
           host = `${net.ip}:${net.port || 3000}`;
+          if (phoneNetworkAdapterName) {
+            phoneNetworkAdapterName.textContent = `${net.adapterName || 'Wi-Fi'} (${net.ip})`;
+          }
         }
       } catch (e) {}
     }
